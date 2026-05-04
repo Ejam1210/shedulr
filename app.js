@@ -589,18 +589,38 @@ function groupTasksByDate(occurrences) {
 
 function assignTimelineLanes(dayTasks) {
   const laneEnds = [];
+  let currentGroup = [];
+  let currentGroupEnd = -Infinity;
   const items = dayTasks
     .map((task) => ({ task, range: getTaskTimeRange(task), lane: 0, laneCount: 1 }))
     .sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end);
+
+  const finishGroup = () => {
+    if (currentGroup.length === 0) return;
+
+    const laneCount = Math.max(...currentGroup.map((item) => item.lane)) + 1;
+    currentGroup.forEach((item) => {
+      item.laneCount = laneCount;
+    });
+    currentGroup = [];
+    currentGroupEnd = -Infinity;
+  };
 
   items.forEach((item) => {
     const lane = laneEnds.findIndex((end) => end <= item.range.start);
     item.lane = lane === -1 ? laneEnds.length : lane;
     laneEnds[item.lane] = item.range.end;
+
+    if (currentGroup.length > 0 && item.range.start >= currentGroupEnd) {
+      finishGroup();
+    }
+
+    currentGroup.push(item);
+    currentGroupEnd = Math.max(currentGroupEnd, item.range.end);
   });
 
-  const laneCount = Math.max(laneEnds.length, 1);
-  return items.map((item) => ({ ...item, laneCount }));
+  finishGroup();
+  return items;
 }
 
 function createTimelineTask(item, bounds, extraClass = "") {
@@ -613,7 +633,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
 
   return `
     <article
-      class="timeline-task ${extraClass} ${task.done ? "done" : ""}"
+      class="timeline-task ${extraClass} duration-${task.duration} ${task.done ? "done" : ""}"
       style="--task-top: ${top.toFixed(2)}%; --task-height: ${height.toFixed(2)}%; --task-left: ${laneLeft.toFixed(2)}%; --task-width: ${laneWidth.toFixed(2)}%; --type-color: ${typeStyle.color}; --type-bg: ${typeStyle.bg};"
     >
       <span class="timeline-time">${formatTimeRange(task)}</span>
@@ -846,6 +866,8 @@ function updateScheduleGridZoomControls() {
   gridZoomLevel.textContent = `${Math.round(scheduleGridZoom * 100)}%`;
   gridZoomOutButton.disabled = scheduleGridZoom <= 0.75;
   gridZoomInButton.disabled = scheduleGridZoom >= 2.2;
+  scheduleGrid.classList.toggle("compact-15", scheduleGridZoom <= 1.9);
+  scheduleGrid.classList.toggle("compact-30", scheduleGridZoom <= 1.25);
 }
 
 function getTimelineHeight(totalMinutes) {

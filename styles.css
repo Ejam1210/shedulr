@@ -817,8 +817,10 @@ textarea:focus {
   display: grid;
   max-height: calc(100vh - 250px);
   overflow: auto;
-  padding-right: 6px;
+  padding-right: 18px;
+  padding-bottom: 14px;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
 }
 
 .day-grid-card {
@@ -851,12 +853,13 @@ textarea:focus {
 }
 
 .week-grid-card {
-  min-width: 980px;
+  min-width: 1060px;
+  margin-right: 18px;
 }
 
 .week-days-header {
   display: grid;
-  grid-template-columns: 74px repeat(7, minmax(112px, 1fr));
+  grid-template-columns: 74px repeat(7, minmax(122px, 1fr));
   gap: 12px;
   margin-bottom: 8px;
 }
@@ -905,7 +908,7 @@ textarea:focus {
 
 .week-board {
   display: grid;
-  grid-template-columns: repeat(7, minmax(112px, 1fr));
+  grid-template-columns: repeat(7, minmax(122px, 1fr));
 }
 
 .week-day-column {
@@ -936,7 +939,7 @@ textarea:focus {
   top: var(--task-top);
   left: calc(var(--task-left) + 8px);
   width: calc(var(--task-width) - 12px);
-  min-height: 44px;
+  min-height: 0;
   height: calc(var(--task-height) - 4px);
   display: grid;
   grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
@@ -960,7 +963,7 @@ textarea:focus {
   grid-template-rows: auto auto auto;
   align-content: start;
   align-items: start;
-  min-height: 54px;
+  min-height: 0;
   gap: 3px;
   padding: 8px;
 }
@@ -1020,6 +1023,38 @@ textarea:focus {
 
 .week-task .timeline-meta {
   font-size: 0.68rem;
+}
+
+.schedule-grid-view.compact-15 .duration-15,
+.schedule-grid-view.compact-30 .duration-30 {
+  grid-template-columns: minmax(50px, auto) minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  align-content: center;
+  align-items: center;
+  column-gap: 6px;
+  padding: 3px 6px;
+}
+
+.schedule-grid-view.compact-15 .duration-15 .timeline-time,
+.schedule-grid-view.compact-30 .duration-30 .timeline-time {
+  grid-row: auto;
+  border: 0;
+  background: transparent;
+  color: var(--type-color);
+  font-size: 0.62rem;
+  padding: 0;
+}
+
+.schedule-grid-view.compact-15 .duration-15 .timeline-title,
+.schedule-grid-view.compact-30 .duration-30 .timeline-title {
+  align-self: center;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.schedule-grid-view.compact-15 .duration-15 .timeline-meta,
+.schedule-grid-view.compact-30 .duration-30 .timeline-meta {
+  display: none;
 }
 
 .stats-grid {
@@ -1471,11 +1506,15 @@ textarea:focus {
   }
 
   .week-grid-card {
-    min-width: 860px;
+    min-width: 980px;
   }
 
   .week-days-header {
-    grid-template-columns: 58px repeat(7, minmax(96px, 1fr));
+    grid-template-columns: 58px repeat(7, minmax(112px, 1fr));
+  }
+
+  .week-board {
+    grid-template-columns: repeat(7, minmax(112px, 1fr));
   }
 
   .timeline-task {
