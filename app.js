@@ -1,5 +1,6 @@
 const STORAGE_KEY = "daily-task-scheduler.tasks";
 const THEME_STORAGE_KEY = "daily-task-scheduler.theme";
+const ACCENT_STORAGE_KEY = "daily-task-scheduler.accent";
 const TYPE_STORAGE_KEY = "daily-task-scheduler.custom-types";
 const GOAL_STORAGE_KEY = "daily-task-scheduler.weekly-goals";
 const SCHEDULE_DAYS_TO_SHOW = 30;
@@ -40,11 +41,13 @@ const menuButton = document.querySelector("#menuButton");
 const closeMenuButton = document.querySelector("#closeMenuButton");
 const sideMenu = document.querySelector("#sideMenu");
 const drawerOverlay = document.querySelector("#drawerOverlay");
+const colourThemeButtons = document.querySelectorAll(".colour-button");
 
 let tasks = loadTasks();
 let customTaskTypes = mergeCustomTaskTypes(loadCustomTaskTypes(), tasks.map((task) => task.type));
 let weeklyGoals = loadWeeklyGoals();
 let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) ?? "light";
+let currentAccentTheme = localStorage.getItem(ACCENT_STORAGE_KEY) ?? "green";
 let scheduleView = "list";
 let scheduleGridZoom = 1;
 let pinchStartDistance = 0;
@@ -56,6 +59,41 @@ const TASK_TYPE_STYLES = {
   Study: { color: "#2e7d5b", bg: "rgba(46, 125, 91, 0.15)" },
   Health: { color: "#c95f4f", bg: "rgba(201, 95, 79, 0.14)" },
   Errand: { color: "#b2832f", bg: "rgba(178, 131, 47, 0.16)" },
+};
+
+const ACCENT_THEMES = {
+  green: {
+    light: { accent: "#2e7d5b", strong: "#235f47", soft: "rgba(46, 125, 91, 0.14)", faint: "rgba(46, 125, 91, 0.08)", border: "rgba(46, 125, 91, 0.35)" },
+    dark: { accent: "#71c89c", strong: "#9bddb8", soft: "rgba(113, 200, 156, 0.16)", faint: "rgba(113, 200, 156, 0.08)", border: "rgba(113, 200, 156, 0.38)" },
+  },
+  blue: {
+    light: { accent: "#2d6f9f", strong: "#215273", soft: "rgba(45, 111, 159, 0.14)", faint: "rgba(45, 111, 159, 0.08)", border: "rgba(45, 111, 159, 0.35)" },
+    dark: { accent: "#87c7e8", strong: "#b4def2", soft: "rgba(135, 199, 232, 0.16)", faint: "rgba(135, 199, 232, 0.08)", border: "rgba(135, 199, 232, 0.38)" },
+  },
+  teal: {
+    light: { accent: "#12806f", strong: "#0e6154", soft: "rgba(18, 128, 111, 0.14)", faint: "rgba(18, 128, 111, 0.08)", border: "rgba(18, 128, 111, 0.35)" },
+    dark: { accent: "#65d2c3", strong: "#9ee7dd", soft: "rgba(101, 210, 195, 0.16)", faint: "rgba(101, 210, 195, 0.08)", border: "rgba(101, 210, 195, 0.38)" },
+  },
+  purple: {
+    light: { accent: "#7a5bb8", strong: "#5b438a", soft: "rgba(122, 91, 184, 0.15)", faint: "rgba(122, 91, 184, 0.08)", border: "rgba(122, 91, 184, 0.36)" },
+    dark: { accent: "#b99aea", strong: "#d2bdf2", soft: "rgba(185, 154, 234, 0.17)", faint: "rgba(185, 154, 234, 0.08)", border: "rgba(185, 154, 234, 0.4)" },
+  },
+  pink: {
+    light: { accent: "#c05a8d", strong: "#914269", soft: "rgba(192, 90, 141, 0.14)", faint: "rgba(192, 90, 141, 0.08)", border: "rgba(192, 90, 141, 0.35)" },
+    dark: { accent: "#ee9ac7", strong: "#f5bfdc", soft: "rgba(238, 154, 199, 0.16)", faint: "rgba(238, 154, 199, 0.08)", border: "rgba(238, 154, 199, 0.4)" },
+  },
+  red: {
+    light: { accent: "#c95f4f", strong: "#974639", soft: "rgba(201, 95, 79, 0.14)", faint: "rgba(201, 95, 79, 0.08)", border: "rgba(201, 95, 79, 0.35)" },
+    dark: { accent: "#f08a79", strong: "#f6b4aa", soft: "rgba(240, 138, 121, 0.16)", faint: "rgba(240, 138, 121, 0.08)", border: "rgba(240, 138, 121, 0.4)" },
+  },
+  orange: {
+    light: { accent: "#c77724", strong: "#945918", soft: "rgba(199, 119, 36, 0.15)", faint: "rgba(199, 119, 36, 0.08)", border: "rgba(199, 119, 36, 0.36)" },
+    dark: { accent: "#f3ac5a", strong: "#f8cc91", soft: "rgba(243, 172, 90, 0.17)", faint: "rgba(243, 172, 90, 0.08)", border: "rgba(243, 172, 90, 0.4)" },
+  },
+  gold: {
+    light: { accent: "#b2832f", strong: "#7c5d20", soft: "rgba(178, 131, 47, 0.16)", faint: "rgba(178, 131, 47, 0.08)", border: "rgba(178, 131, 47, 0.36)" },
+    dark: { accent: "#e4ba67", strong: "#f2d99c", soft: "rgba(228, 186, 103, 0.17)", faint: "rgba(228, 186, 103, 0.08)", border: "rgba(228, 186, 103, 0.4)" },
+  },
 };
 
 const today = new Date();
@@ -80,6 +118,10 @@ document.querySelectorAll(".tab-button").forEach((button) => {
 
 document.querySelectorAll(".theme-button").forEach((button) => {
   button.addEventListener("click", () => applyTheme(button.dataset.theme));
+});
+
+colourThemeButtons.forEach((button) => {
+  button.addEventListener("click", () => applyAccentTheme(button.dataset.colourTheme));
 });
 
 weeklyGoalInputs.forEach((input) => {
@@ -1162,9 +1204,31 @@ function applyTheme(theme) {
   currentTheme = theme === "dark" ? "dark" : "light";
   document.body.dataset.theme = currentTheme;
   localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
+  applyAccentTheme(currentAccentTheme, false);
 
   document.querySelectorAll(".theme-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.theme === currentTheme);
+  });
+}
+
+function applyAccentTheme(theme, shouldSave = true) {
+  currentAccentTheme = ACCENT_THEMES[theme] ? theme : "green";
+  const accent = ACCENT_THEMES[currentAccentTheme][currentTheme];
+
+  [document.documentElement, document.body].forEach((element) => {
+    element.style.setProperty("--green", accent.accent);
+    element.style.setProperty("--green-dark", accent.strong);
+    element.style.setProperty("--accent-soft", accent.soft);
+    element.style.setProperty("--accent-faint", accent.faint);
+    element.style.setProperty("--accent-border", accent.border);
+  });
+
+  if (shouldSave) {
+    localStorage.setItem(ACCENT_STORAGE_KEY, currentAccentTheme);
+  }
+
+  colourThemeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.colourTheme === currentAccentTheme);
   });
 }
 

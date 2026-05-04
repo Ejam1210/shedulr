@@ -14,6 +14,9 @@
   --line: #d8ded5;
   --green: #2e7d5b;
   --green-dark: #235f47;
+  --accent-soft: rgba(46, 125, 91, 0.14);
+  --accent-faint: rgba(46, 125, 91, 0.08);
+  --accent-border: rgba(46, 125, 91, 0.35);
   --coral: #c95f4f;
   --blue: #2d6f9f;
   --gold: #b2832f;
@@ -37,6 +40,9 @@ body[data-theme="dark"] {
   --line: #314044;
   --green: #71c89c;
   --green-dark: #9bddb8;
+  --accent-soft: rgba(113, 200, 156, 0.16);
+  --accent-faint: rgba(113, 200, 156, 0.08);
+  --accent-border: rgba(113, 200, 156, 0.38);
   --coral: #f08a79;
   --blue: #87c7e8;
   --gold: #e4ba67;
@@ -53,7 +59,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   background:
-    linear-gradient(135deg, rgba(46, 125, 91, 0.14), transparent 34%),
+    linear-gradient(135deg, var(--accent-soft), transparent 34%),
     linear-gradient(225deg, rgba(201, 95, 79, 0.12), transparent 28%),
     var(--paper);
   color: var(--ink);
@@ -255,7 +261,8 @@ p {
   padding: 14px;
 }
 
-.theme-card h3 {
+.theme-card h3,
+.colour-theme-panel h3 {
   margin-bottom: 8px;
 }
 
@@ -277,7 +284,53 @@ p {
 
 .theme-button.active {
   border-color: var(--green);
-  background: rgba(46, 125, 91, 0.16);
+  background: var(--accent-soft);
+  color: var(--green-dark);
+}
+
+.colour-theme-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.colour-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.colour-button {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0 9px;
+}
+
+.colour-button span {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  border-radius: 999px;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.colour-button.active {
+  border-color: var(--green);
+  background: var(--accent-soft);
   color: var(--green-dark);
 }
 
@@ -370,7 +423,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--green);
-  box-shadow: 0 0 0 4px rgba(46, 125, 91, 0.14);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .custom-type-input.hidden {
@@ -427,7 +480,7 @@ textarea:focus {
 
 .weekday-picker label:has(input:checked) {
   border-color: var(--green);
-  background: rgba(46, 125, 91, 0.12);
+  background: var(--accent-soft);
   color: var(--green-dark);
 }
 
@@ -683,7 +736,7 @@ textarea:focus {
   justify-self: end;
   min-width: 96px;
   border-radius: 8px;
-  background: rgba(46, 125, 91, 0.12);
+  background: var(--accent-soft);
   color: var(--green-dark);
   font-size: 1.15rem;
   font-weight: 900;
@@ -825,7 +878,7 @@ textarea:focus {
 
 .week-days-header span.today {
   border-color: var(--green);
-  background: rgba(46, 125, 91, 0.13);
+  background: var(--accent-soft);
   color: var(--green-dark);
 }
 
@@ -867,7 +920,7 @@ textarea:focus {
 }
 
 .week-day-column.today {
-  background: rgba(46, 125, 91, 0.04);
+  background: var(--accent-faint);
 }
 
 .timeline-line {
@@ -1073,8 +1126,8 @@ textarea:focus {
 }
 
 .bonus-score {
-  border-color: rgba(46, 125, 91, 0.35);
-  background: rgba(46, 125, 91, 0.1);
+  border-color: var(--accent-border);
+  background: var(--accent-faint);
 }
 
 .bonus-score strong {
@@ -1130,7 +1183,7 @@ textarea:focus {
 }
 
 .weekly-metric.up .metric-change {
-  background: rgba(46, 125, 91, 0.14);
+  background: var(--accent-soft);
   color: var(--green-dark);
 }
 
@@ -1149,7 +1202,7 @@ textarea:focus {
 }
 
 .goal-result.met {
-  background: rgba(46, 125, 91, 0.14);
+  background: var(--accent-soft);
   color: var(--green-dark);
 }
 
@@ -1296,7 +1349,7 @@ textarea:focus {
 }
 
 .line-chart .chart-area {
-  fill: rgba(46, 125, 91, 0.12);
+  fill: var(--accent-soft);
 }
 
 .line-chart .chart-line {
