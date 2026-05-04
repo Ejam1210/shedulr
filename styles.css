@@ -1027,29 +1027,31 @@ textarea:focus {
 
 .schedule-grid-view.compact-15 .duration-15,
 .schedule-grid-view.compact-30 .duration-30 {
-  grid-template-columns: minmax(50px, auto) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   grid-template-rows: 1fr;
   align-content: center;
   align-items: center;
-  column-gap: 6px;
+  justify-items: center;
+  border-color: var(--type-color);
+  background: var(--type-color);
+  box-shadow: none;
   padding: 3px 6px;
 }
 
 .schedule-grid-view.compact-15 .duration-15 .timeline-time,
 .schedule-grid-view.compact-30 .duration-30 .timeline-time {
-  grid-row: auto;
-  border: 0;
-  background: transparent;
-  color: var(--type-color);
-  font-size: 0.62rem;
-  padding: 0;
+  display: none;
 }
 
 .schedule-grid-view.compact-15 .duration-15 .timeline-title,
 .schedule-grid-view.compact-30 .duration-30 .timeline-title {
   align-self: center;
-  font-size: 0.72rem;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 900;
   line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .schedule-grid-view.compact-15 .duration-15 .timeline-meta,
