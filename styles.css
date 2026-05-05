@@ -260,15 +260,15 @@ p {
 
 .bottom-tabbar {
   position: fixed;
-  right: 10px;
+  right: auto;
   bottom: 10px;
-  left: 10px;
+  left: 50%;
   z-index: 18;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
-  width: min(580px, calc(100% - 20px));
-  margin: 0 auto;
+  width: min(520px, calc(100% - 32px));
+  transform: translateX(-50%);
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -2122,7 +2122,7 @@ textarea:focus {
 
   .bottom-tabbar {
     bottom: 6px;
-    width: calc(100% - 12px);
+    width: min(420px, calc(100% - 28px));
     padding: 5px;
   }
 
