@@ -4,10 +4,14 @@ const ACCENT_STORAGE_KEY = "daily-task-scheduler.accent";
 const TYPE_STORAGE_KEY = "daily-task-scheduler.custom-types";
 const GOAL_STORAGE_KEY = "daily-task-scheduler.weekly-goals";
 const OVERLAP_DISMISS_STORAGE_KEY = "daily-task-scheduler.dismissed-overlap";
+const TIMER_STORAGE_KEY = "daily-task-scheduler.active-timer";
+const FEATURE_STORAGE_KEY = "daily-task-scheduler.feature-settings";
+const TEMPLATE_STORAGE_KEY = "daily-task-scheduler.task-templates";
 const SCHEDULE_DAYS_TO_SHOW = 30;
 const GRID_MINUTE_HEIGHT = 2.05;
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const BUILT_IN_TASK_TYPES = ["Focus", "Personal", "Study", "Health", "Errand"];
+const PRIORITY_LEVELS = ["Low", "Medium", "High"];
 
 const taskForm = document.querySelector("#taskForm");
 const taskList = document.querySelector("#taskList");
@@ -19,10 +23,14 @@ const completedEmptyState = document.querySelector("#completedEmptyState");
 const taskCount = document.querySelector("#taskCount");
 const completedCount = document.querySelector("#completedCount");
 const completedPoints = document.querySelector("#completedPoints");
+const dailyDashboard = document.querySelector("#dailyDashboard");
+const missedTasksPanel = document.querySelector("#missedTasksPanel");
+const missedTaskList = document.querySelector("#missedTaskList");
 const weeklyReport = document.querySelector("#weeklyReport");
 const statsGrid = document.querySelector("#statsGrid");
 const statsRange = document.querySelector("#statsRange");
 const weeklyGoalInputs = document.querySelectorAll(".weekly-goal-select");
+const featureToggleInputs = document.querySelectorAll("[data-feature-toggle]");
 const todayCount = document.querySelector("#todayCount");
 const todaySummary = document.querySelector("#todaySummary");
 const todayLabel = document.querySelector("#todayLabel");
@@ -33,9 +41,17 @@ const scheduleViewButtons = document.querySelectorAll(".view-button");
 const gridZoomInButton = document.querySelector("#gridZoomIn");
 const gridZoomOutButton = document.querySelector("#gridZoomOut");
 const gridZoomLevel = document.querySelector("#gridZoomLevel");
+const taskTitleInput = document.querySelector("#taskTitle");
 const taskDateInput = document.querySelector("#taskDate");
+const taskTimeInput = document.querySelector("#taskTime");
+const taskDurationInput = document.querySelector("#taskDuration");
 const taskTypeInput = document.querySelector("#taskType");
 const customTaskTypeInput = document.querySelector("#customTaskType");
+const taskPriorityInput = document.querySelector("#taskPriority");
+const priorityField = document.querySelector("#priorityField");
+const taskNotesInput = document.querySelector("#taskNotes");
+const taskTemplateSelect = document.querySelector("#taskTemplate");
+const saveTemplateButton = document.querySelector("#saveTemplateButton");
 const taskRepeatsInput = document.querySelector("#taskRepeats");
 const weekdayPicker = document.querySelector("#weekdayPicker");
 const menuButton = document.querySelector("#menuButton");
@@ -43,10 +59,13 @@ const closeMenuButton = document.querySelector("#closeMenuButton");
 const sideMenu = document.querySelector("#sideMenu");
 const drawerOverlay = document.querySelector("#drawerOverlay");
 const colourThemeButtons = document.querySelectorAll(".colour-button");
+const focusOverlay = document.querySelector("#focusOverlay");
 
 let tasks = loadTasks();
 let customTaskTypes = mergeCustomTaskTypes(loadCustomTaskTypes(), tasks.map((task) => task.type));
 let weeklyGoals = loadWeeklyGoals();
+let featureSettings;
+let taskTemplates = loadTaskTemplates();
 let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) ?? "light";
 let currentAccentTheme = localStorage.getItem(ACCENT_STORAGE_KEY) ?? "green";
 let scheduleView = "list";
@@ -55,6 +74,9 @@ let pinchStartDistance = 0;
 let pinchStartZoom = 1;
 let currentOverlapSignature = "";
 let dismissedOverlapSignature = localStorage.getItem(OVERLAP_DISMISS_STORAGE_KEY) ?? "";
+let activeTimer = loadActiveTimer();
+let timerInterval = null;
+let currentTypeStreaks = new Map();
 
 const TASK_TYPE_STYLES = {
   Focus: { color: "#2d6f9f", bg: "rgba(45, 111, 159, 0.14)" },
@@ -63,6 +85,59 @@ const TASK_TYPE_STYLES = {
   Health: { color: "#c95f4f", bg: "rgba(201, 95, 79, 0.14)" },
   Errand: { color: "#b2832f", bg: "rgba(178, 131, 47, 0.16)" },
 };
+
+const DEFAULT_FEATURE_SETTINGS = {
+  dailyDashboard: true,
+  streaks: true,
+  priorities: true,
+  missedTasks: true,
+  focusMode: false,
+};
+
+featureSettings = loadFeatureSettings();
+
+const DEFAULT_TASK_TEMPLATES = [
+  {
+    id: "default-study",
+    title: "Study",
+    duration: 60,
+    type: "Study",
+    notes: "",
+    priority: "High",
+    repeats: false,
+    repeatDays: [],
+  },
+  {
+    id: "default-reading",
+    title: "Reading",
+    duration: 30,
+    type: "Personal",
+    notes: "",
+    priority: "Medium",
+    repeats: false,
+    repeatDays: [],
+  },
+  {
+    id: "default-workout",
+    title: "Workout",
+    duration: 45,
+    type: "Health",
+    notes: "",
+    priority: "High",
+    repeats: false,
+    repeatDays: [],
+  },
+  {
+    id: "default-clean-room",
+    title: "Clean room",
+    duration: 30,
+    type: "Personal",
+    notes: "",
+    priority: "Low",
+    repeats: false,
+    repeatDays: [],
+  },
+];
 
 const ACCENT_THEMES = {
   green: {
@@ -109,7 +184,9 @@ todayLabel.textContent = today.toLocaleDateString(undefined, {
 });
 saveCustomTaskTypes();
 renderTaskTypeOptions();
+renderTaskTemplateOptions();
 applyWeeklyGoalsToControls();
+applyFeatureSettingsToControls();
 applyTheme(currentTheme);
 
 document.querySelectorAll(".tab-button").forEach((button) => {
@@ -125,6 +202,18 @@ document.querySelectorAll(".theme-button").forEach((button) => {
 
 colourThemeButtons.forEach((button) => {
   button.addEventListener("click", () => applyAccentTheme(button.dataset.colourTheme));
+});
+
+featureToggleInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    featureSettings = {
+      ...featureSettings,
+      [input.dataset.featureToggle]: input.checked,
+    };
+    saveFeatureSettings();
+    applyFeatureVisibility();
+    render();
+  });
 });
 
 weeklyGoalInputs.forEach((input) => {
@@ -155,6 +244,8 @@ scheduleGrid.addEventListener("touchend", resetGridPinch);
 gridZoomInButton.addEventListener("click", () => setScheduleGridZoom(scheduleGridZoom + 0.15));
 gridZoomOutButton.addEventListener("click", () => setScheduleGridZoom(scheduleGridZoom - 0.15));
 taskTypeInput.addEventListener("change", toggleCustomTypeInput);
+taskTemplateSelect.addEventListener("change", applySelectedTaskTemplate);
+saveTemplateButton.addEventListener("click", saveCurrentTaskTemplate);
 menuButton.addEventListener("click", openMenu);
 closeMenuButton.addEventListener("click", closeMenu);
 drawerOverlay.addEventListener("click", closeMenu);
@@ -186,6 +277,7 @@ taskForm.addEventListener("submit", (event) => {
     time: formData.get("time"),
     duration: Number(formData.get("duration")),
     type: taskType,
+    priority: normalizePriority(formData.get("priority")),
     notes: formData.get("notes").trim(),
     repeats,
     repeatDays: repeats ? selectedRepeatDays : [],
@@ -220,14 +312,87 @@ taskList.addEventListener("click", (event) => {
   const occurrenceDate = card.dataset.occurrenceDate;
 
   if (button.dataset.action === "toggle") {
+    const sourceTask = tasks.find((task) => task.id === taskId);
+    const occurrence = sourceTask ? createOccurrence(sourceTask, occurrenceDate) : null;
+    if (!occurrence?.done) return;
+
     tasks = tasks.map((task) => toggleTaskCompletion(task, taskId, occurrenceDate));
+    clearActiveTimerFor(taskId, occurrenceDate);
+  }
+
+  if (button.dataset.action === "start") {
+    const sourceTask = tasks.find((task) => task.id === taskId);
+    activeTimer = {
+      taskId,
+      occurrenceDate,
+      duration: Number(sourceTask?.duration ?? 0),
+      startedAt: Date.now(),
+    };
+    saveActiveTimer();
+  }
+
+  if (button.dataset.action === "finish") {
+    if (!isActiveTimerCompleteFor(taskId, occurrenceDate)) return;
+
+    tasks = tasks.map((task) => markTaskComplete(task, taskId, occurrenceDate));
+    clearActiveTimer();
   }
 
   if (button.dataset.action === "delete") {
     tasks = tasks.filter((task) => task.id !== taskId);
+    clearActiveTimerFor(taskId, occurrenceDate);
   }
 
   saveTasks();
+  render();
+});
+
+missedTaskList.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-missed-action]");
+  if (!button) return;
+
+  const card = button.closest("[data-task-id]");
+  const taskId = card.dataset.taskId;
+  const occurrenceDate = card.dataset.occurrenceDate;
+  const action = button.dataset.missedAction;
+
+  if (action === "today") {
+    moveMissedTask(taskId, occurrenceDate, todayISO);
+  }
+
+  if (action === "tomorrow") {
+    moveMissedTask(taskId, occurrenceDate, toDateInputValue(addDays(today, 1)));
+  }
+
+  if (action === "skip") {
+    tasks = tasks.map((task) => skipTaskOccurrence(task, taskId, occurrenceDate));
+  }
+
+  saveTasks();
+  render();
+});
+
+focusOverlay.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-focus-action]");
+  if (!button) return;
+
+  if (button.dataset.focusAction === "finish" && activeTimer) {
+    if (!isActiveTimerCompleteFor(activeTimer.taskId, activeTimer.occurrenceDate)) return;
+
+    tasks = tasks.map((task) => markTaskComplete(task, activeTimer.taskId, activeTimer.occurrenceDate));
+    clearActiveTimer();
+    saveTasks();
+  }
+
+  if (button.dataset.focusAction === "off") {
+    featureSettings = {
+      ...featureSettings,
+      focusMode: false,
+    };
+    saveFeatureSettings();
+    applyFeatureSettingsToControls();
+  }
+
   render();
 });
 
@@ -262,6 +427,7 @@ function switchTab(tabName) {
 }
 
 function render() {
+  syncActiveTimerWithTasks();
   const occurrences = buildScheduleOccurrences();
   const visibleOccurrences = occurrences.filter(matchesCurrentFilter);
   const gridOccurrences = getGridOccurrences(occurrences);
@@ -269,27 +435,34 @@ function render() {
     (task) => task.occurrenceDate === todayISO && task.done,
   );
   const pointsToday = completedToday.reduce((total, task) => total + calculatePoints(task), 0);
+  const completedHistory = buildCompletedHistory();
+  currentTypeStreaks = buildTypeStreakMap(completedHistory);
 
   taskCount.textContent = tasks.length;
   completedCount.textContent = completedToday.length;
   completedPoints.textContent = formatPoints(pointsToday);
   renderTodaySummary(occurrences);
+  renderDailyDashboard(occurrences, completedHistory);
+  renderMissedTasks();
+  renderFocusOverlay(occurrences);
+  applyFeatureVisibility();
 
   scheduleViewButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.view === scheduleView);
   });
   scheduleControls.classList.toggle("grid-mode", scheduleView === "grid");
   updateScheduleGridZoomControls();
+  ensureTimerInterval();
 
   taskList.innerHTML = visibleOccurrences.map(createTaskCard).join("");
   scheduleGrid.innerHTML = createScheduleGrid(gridOccurrences);
+  updateTimerDisplay();
   taskList.classList.toggle("hidden", scheduleView !== "list");
   scheduleGrid.classList.toggle("active", scheduleView === "grid");
   emptyState.classList.toggle("visible", scheduleView === "list" && visibleOccurrences.length === 0);
   renderOverlapAlert(scheduleView === "grid" ? gridOccurrences : visibleOccurrences);
   completedTaskList.innerHTML = completedToday.map(createCompletedTaskCard).join("");
   completedEmptyState.classList.toggle("visible", completedToday.length === 0);
-  const completedHistory = buildCompletedHistory();
   weeklyReport.innerHTML = createWeeklyReport(completedHistory);
   statsGrid.innerHTML = createStatsPanel(completedHistory);
 }
@@ -320,6 +493,38 @@ function buildScheduleOccurrences() {
     .sort((a, b) => `${a.occurrenceDate}T${a.time}`.localeCompare(`${b.occurrenceDate}T${b.time}`));
 }
 
+function buildMissedOccurrences() {
+  const missedStart = addDays(startOfToday(today), -30);
+  const missedEnd = addDays(startOfToday(today), -1);
+  const missed = [];
+
+  tasks.forEach((task) => {
+    if (!task.repeats) {
+      const taskDate = parseISODate(task.date);
+      const occurrence = createOccurrence(task, task.date);
+      if (taskDate <= missedEnd && !occurrence.done && !occurrence.skipped) {
+        missed.push(occurrence);
+      }
+      return;
+    }
+
+    const taskStart = parseISODate(task.date);
+    const firstDay = taskStart > missedStart ? taskStart : missedStart;
+
+    for (let day = new Date(firstDay); day <= missedEnd; day = addDays(day, 1)) {
+      if (!task.repeatDays.includes(day.getDay())) continue;
+
+      const isoDate = toDateInputValue(day);
+      const occurrence = createOccurrence(task, isoDate);
+      if (!occurrence.done && !occurrence.skipped) {
+        missed.push(occurrence);
+      }
+    }
+  });
+
+  return missed.sort((a, b) => `${b.occurrenceDate}T${b.time}`.localeCompare(`${a.occurrenceDate}T${a.time}`));
+}
+
 function buildCompletedHistory() {
   return tasks
     .flatMap((task) => {
@@ -335,10 +540,13 @@ function buildCompletedHistory() {
 
 function createOccurrence(task, date) {
   const completedDates = Array.isArray(task.completedDates) ? task.completedDates : [];
+  const skippedDates = Array.isArray(task.skippedDates) ? task.skippedDates : [];
   return {
     ...task,
+    priority: normalizePriority(task.priority),
     occurrenceDate: date,
     done: task.repeats ? completedDates.includes(date) : Boolean(task.done),
+    skipped: task.repeats ? skippedDates.includes(date) : Boolean(task.skipped),
   };
 }
 
@@ -358,6 +566,134 @@ function renderTodaySummary(occurrences) {
       : `${remaining} task${remaining === 1 ? "" : "s"} still planned for today.`;
 }
 
+function renderDailyDashboard(occurrences) {
+  if (!featureSettings.dailyDashboard) {
+    dailyDashboard.classList.add("hidden");
+    dailyDashboard.innerHTML = "";
+    return;
+  }
+
+  const todaysTasks = occurrences.filter((task) => task.occurrenceDate === todayISO && !task.skipped);
+  const completed = todaysTasks.filter((task) => task.done);
+  const remaining = todaysTasks.filter((task) => !task.done);
+  const pointsToday = completed.reduce((total, task) => total + calculatePoints(task), 0);
+  const minutesToday = completed.reduce((total, task) => total + Number(task.duration), 0);
+  const activeTask = activeTimer
+    ? occurrences.find((task) => isActiveTimerFor(task))
+    : null;
+  const nextTask = activeTask ?? getNextTodayTask(remaining);
+
+  dailyDashboard.classList.remove("hidden");
+  dailyDashboard.innerHTML = `
+    <div class="dashboard-header">
+      <div>
+        <span class="report-kicker">Daily dashboard</span>
+        <h2>Today at a glance</h2>
+      </div>
+      <strong>${completed.length}/${todaysTasks.length}</strong>
+    </div>
+    <div class="dashboard-grid">
+      <article class="dashboard-card">
+        <span>Points</span>
+        <strong>${formatPoints(pointsToday)}</strong>
+        <small>${formatMinutesAsHours(minutesToday)} completed</small>
+      </article>
+      <article class="dashboard-card">
+        <span>Remaining</span>
+        <strong>${remaining.length}</strong>
+        <small>${todaysTasks.length === 0 ? "No tasks today" : "tasks left today"}</small>
+      </article>
+      <article class="dashboard-card dashboard-next">
+        <span>${activeTask ? "Current task" : "Next task"}</span>
+        ${createDashboardTaskPreview(nextTask)}
+      </article>
+      ${createDashboardStreakCard()}
+    </div>
+  `;
+}
+
+function createDashboardTaskPreview(task) {
+  if (!task) {
+    return `
+      <strong>Clear</strong>
+      <small>Nothing waiting right now</small>
+    `;
+  }
+
+  return `
+    <strong>${escapeHTML(task.title)}</strong>
+    <small>${formatTimeRange(task)} &middot; ${escapeHTML(task.type)}</small>
+  `;
+}
+
+function createDashboardStreakCard() {
+  if (!featureSettings.streaks) return "";
+
+  const streaks = [...currentTypeStreaks.entries()]
+    .filter(([, days]) => days > 0)
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 3);
+
+  const streakList = streaks.length
+    ? streaks
+        .map(
+          ([type, days]) => `
+            <span class="streak-pill">${escapeHTML(type)} ${days}d</span>
+          `,
+        )
+        .join("")
+    : `<small>Complete a task to start a streak.</small>`;
+
+  return `
+    <article class="dashboard-card dashboard-streaks">
+      <span>Streaks</span>
+      <strong>${streaks[0]?.[1] ?? 0} days</strong>
+      <div class="streak-row">${streakList}</div>
+    </article>
+  `;
+}
+
+function getNextTodayTask(todaysTasks) {
+  const now = new Date();
+  const upcoming = todaysTasks.find((task) => new Date(`${task.occurrenceDate}T${task.time}`) >= now);
+  return upcoming ?? todaysTasks[0] ?? null;
+}
+
+function renderMissedTasks() {
+  if (!featureSettings.missedTasks) {
+    missedTasksPanel.classList.add("hidden");
+    missedTaskList.innerHTML = "";
+    return;
+  }
+
+  const missedTasks = buildMissedOccurrences();
+  missedTasksPanel.classList.toggle("hidden", missedTasks.length === 0);
+  missedTaskList.innerHTML = missedTasks.slice(0, 8).map(createMissedTaskCard).join("");
+}
+
+function createMissedTaskCard(task) {
+  const typeStyle = createTypeStyleAttribute(task.type);
+  const priorityChip = createPriorityChip(task);
+
+  return `
+    <article class="missed-task-card" data-task-id="${task.id}" data-occurrence-date="${task.occurrenceDate}" ${typeStyle}>
+      <div>
+        <strong>${escapeHTML(task.title)}</strong>
+        <span>${formatDateHeading(task.occurrenceDate)} &middot; ${formatTimeRange(task)}</span>
+        <div class="task-meta">
+          <span class="chip type-chip">${escapeHTML(task.type)}</span>
+          ${priorityChip}
+        </div>
+      </div>
+      <div class="missed-actions">
+        <button class="secondary-button" data-missed-action="today" type="button">Today</button>
+        <button class="secondary-button" data-missed-action="tomorrow" type="button">Tomorrow</button>
+        <button class="secondary-button danger-button" data-missed-action="skip" type="button">Skip</button>
+      </div>
+    </article>
+  `;
+}
+
 function createTaskCard(task) {
   const date = new Date(`${task.occurrenceDate}T${task.time}`);
   const dayLabel = date.toLocaleDateString(undefined, {
@@ -371,28 +707,54 @@ function createTaskCard(task) {
   });
   const notes = task.notes ? `<p>${escapeHTML(task.notes)}</p>` : "";
   const repeatLabel = task.repeats ? createRepeatLabel(task.repeatDays) : "One-time";
-  const doneLabel = task.done ? "Undo" : "Done";
+  const priorityChip = createPriorityChip(task);
+  const streakChip = createStreakChip(task.type);
   const typeStyle = createTypeStyleAttribute(task.type);
+  const isTimerActive = isActiveTimerFor(task);
+  const timerComplete = isTimerActive && isTimerComplete(activeTimer);
+  const canStartTimer = !task.done && (!activeTimer || isTimerActive);
+  const timerPanel = isTimerActive
+    ? `
+      <div class="task-timer" data-timer-task>
+        <span>Timer running</span>
+        <strong data-timer-countdown>${formatTimerRemaining(activeTimer)}</strong>
+      </div>
+    `
+    : "";
+  const timerButton = task.done
+    ? ""
+    : isTimerActive
+      ? `<button class="icon-button finish" type="button" data-action="finish" title="${timerComplete ? "Finish task" : "Finish unlocks when the timer ends"}" aria-label="Finish task" data-active-finish ${timerComplete ? "" : "disabled"}>Finish</button>`
+      : `<button class="icon-button start" type="button" data-action="start" title="Start task" aria-label="Start task" ${canStartTimer ? "" : "disabled"}>Start</button>`;
+  const undoButton = task.done
+    ? `
+      <button class="icon-button" type="button" data-action="toggle" title="Undo" aria-label="Undo">
+        Undo
+      </button>
+    `
+    : "";
 
   return `
     <article class="task-card ${task.done ? "done" : ""}" data-task-id="${task.id}" data-occurrence-date="${task.occurrenceDate}" ${typeStyle}>
       <div class="time-block">
         <strong>${timeLabel}</strong>
-        <span>${dayLabel}</span>
+        <span>Estimate &middot; ${dayLabel}</span>
       </div>
       <div>
         <div class="task-title">${escapeHTML(task.title)}</div>
         ${notes}
+        ${timerPanel}
         <div class="task-meta">
           <span class="chip">${task.duration} min</span>
           <span class="chip type-chip">${escapeHTML(task.type)}</span>
+          ${priorityChip}
+          ${streakChip}
           <span class="chip">${escapeHTML(repeatLabel)}</span>
         </div>
       </div>
       <div class="task-actions">
-        <button class="icon-button" type="button" data-action="toggle" title="${doneLabel}" aria-label="${doneLabel}">
-          ${doneLabel}
-        </button>
+        ${timerButton}
+        ${undoButton}
         <button class="icon-button delete" type="button" data-action="delete" title="Delete" aria-label="Delete">
           Del
         </button>
@@ -415,13 +777,15 @@ function createCompletedTaskCard(task) {
   const notes = task.notes ? `<p>${escapeHTML(task.notes)}</p>` : "";
   const repeatLabel = task.repeats ? createRepeatLabel(task.repeatDays) : "One-time";
   const points = calculatePoints(task);
+  const priorityChip = createPriorityChip(task);
+  const streakChip = createStreakChip(task.type);
   const typeStyle = createTypeStyleAttribute(task.type);
 
   return `
     <article class="task-card done" ${typeStyle}>
       <div class="time-block">
         <strong>${timeLabel}</strong>
-        <span>${dayLabel}</span>
+        <span>Estimate &middot; ${dayLabel}</span>
       </div>
       <div>
         <div class="task-title">${escapeHTML(task.title)}</div>
@@ -429,6 +793,8 @@ function createCompletedTaskCard(task) {
         <div class="task-meta">
           <span class="chip">${task.duration} min</span>
           <span class="chip type-chip">${escapeHTML(task.type)}</span>
+          ${priorityChip}
+          ${streakChip}
           <span class="chip">${escapeHTML(repeatLabel)}</span>
         </div>
       </div>
@@ -592,6 +958,8 @@ function getGridDateRange() {
 }
 
 function matchesGridStatusFilter(task) {
+  if (task.skipped) return false;
+
   const filter = scheduleFilter.value;
   const taskDateTime = new Date(`${task.occurrenceDate}T${task.time}`);
   const now = new Date();
@@ -682,6 +1050,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
   const laneWidth = 100 / laneCount;
   const laneLeft = lane * laneWidth;
   const typeStyle = getTaskTypeStyle(task.type);
+  const priorityLabel = featureSettings.priorities ? ` &middot; ${escapeHTML(normalizePriority(task.priority))}` : "";
 
   return `
     <article
@@ -690,7 +1059,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
     >
       <span class="timeline-time">${formatTimeRange(task)}</span>
       <strong class="timeline-title">${escapeHTML(task.title)}</strong>
-      <small class="timeline-meta">${escapeHTML(task.type)} &middot; ${task.duration} min</small>
+      <small class="timeline-meta">${escapeHTML(task.type)}${priorityLabel} &middot; ${task.duration} min</small>
     </article>
   `;
 }
@@ -838,6 +1207,84 @@ function getSubmittedTaskType(formData) {
   const selectedType = formData.get("type");
   if (selectedType !== "custom") return selectedType;
   return normalizeTaskTypeName(formData.get("customType"));
+}
+
+function renderTaskTemplateOptions(selectedValue = "") {
+  const savedOptions = taskTemplates
+    .map((template) => `<option value="saved:${template.id}">${escapeHTML(template.title)}</option>`)
+    .join("");
+  const defaultOptions = DEFAULT_TASK_TEMPLATES
+    .map((template) => `<option value="default:${template.id}">${escapeHTML(template.title)}</option>`)
+    .join("");
+
+  taskTemplateSelect.innerHTML = `
+    <option value="">Choose a template...</option>
+    <optgroup label="Quick starts">
+      ${defaultOptions}
+    </optgroup>
+    <optgroup label="Saved">
+      ${savedOptions || '<option value="" disabled>No saved templates yet</option>'}
+    </optgroup>
+  `;
+  taskTemplateSelect.value = selectedValue;
+}
+
+function applySelectedTaskTemplate() {
+  const template = findTaskTemplate(taskTemplateSelect.value);
+  if (!template) return;
+
+  taskTitleInput.value = template.title;
+  taskDurationInput.value = String(template.duration);
+  taskNotesInput.value = template.notes ?? "";
+  taskPriorityInput.value = normalizePriority(template.priority);
+  taskRepeatsInput.checked = Boolean(template.repeats);
+  setRepeatDays(template.repeats ? template.repeatDays : []);
+
+  if (template.type && !hasTaskType(BUILT_IN_TASK_TYPES, template.type) && !hasTaskType(customTaskTypes, template.type)) {
+    saveCustomTaskType(template.type);
+  }
+
+  renderTaskTypeOptions(template.type);
+}
+
+function saveCurrentTaskTemplate() {
+  const formData = new FormData(taskForm);
+  const type = getSubmittedTaskType(formData);
+  const template = normalizeTaskTemplate({
+    id: crypto.randomUUID(),
+    title: formData.get("title"),
+    duration: formData.get("duration"),
+    type,
+    notes: formData.get("notes"),
+    priority: formData.get("priority"),
+    repeats: formData.get("repeats") === "on",
+    repeatDays: getSelectedRepeatDays(),
+  });
+
+  if (!template.title) {
+    taskTitleInput.focus();
+    return;
+  }
+
+  if (!template.type) {
+    customTaskTypeInput.focus();
+    return;
+  }
+
+  saveCustomTaskType(template.type);
+  taskTemplates = [
+    template,
+    ...taskTemplates.filter((savedTemplate) => savedTemplate.title.toLowerCase() !== template.title.toLowerCase()),
+  ].slice(0, 20);
+  saveTaskTemplates();
+  renderTaskTemplateOptions(`saved:${template.id}`);
+}
+
+function findTaskTemplate(value) {
+  const [source, id] = String(value).split(":");
+  if (source === "default") return DEFAULT_TASK_TEMPLATES.find((template) => template.id === id);
+  if (source === "saved") return taskTemplates.find((template) => template.id === id);
+  return null;
 }
 
 function saveCustomTaskType(type) {
@@ -990,6 +1437,7 @@ function createWeeklyReport(completedHistory) {
         ${createWeeklyMetric("Hours", null, report.current.hours, report.previous.hours, formatHours)}
         ${createWeeklyMetric("Tasks", null, report.current.tasks, report.previous.tasks, String)}
       </div>
+      ${createWeeklyHighlights(report.current)}
       <p class="weekly-report-summary">${createWeeklyReportSummary(report)}</p>
     </section>
   `;
@@ -1022,7 +1470,92 @@ function buildWeekMetrics(completedHistory, start, end) {
     tasks: completed.length,
     hours: minutes / 60,
     points,
+    dailyStats: buildWeekDailyStats(completed, start),
+    topType: getTopCompletedType(completed),
   };
+}
+
+function createWeeklyHighlights(metrics) {
+  const bestDay = getBestReportDay(metrics.dailyStats);
+  const quietDay = getQuietReportDay(metrics.dailyStats);
+  const topType = metrics.topType;
+
+  return `
+    <div class="report-highlights">
+      <article>
+        <span>Best day</span>
+        <strong>${formatShortWeekday(bestDay.date)}</strong>
+        <small>${formatPoints(bestDay.points)} pts &middot; ${bestDay.tasks} tasks</small>
+      </article>
+      <article>
+        <span>Quiet day</span>
+        <strong>${formatShortWeekday(quietDay.date)}</strong>
+        <small>${formatPoints(quietDay.points)} pts &middot; ${quietDay.tasks} tasks</small>
+      </article>
+      <article>
+        <span>Average</span>
+        <strong>${formatPoints(metrics.points / 7)}</strong>
+        <small>points per day</small>
+      </article>
+      <article>
+        <span>Top type</span>
+        <strong>${escapeHTML(topType.type)}</strong>
+        <small>${formatPoints(topType.points)} pts from ${topType.tasks} tasks</small>
+      </article>
+    </div>
+  `;
+}
+
+function buildWeekDailyStats(completed, start) {
+  const stats = Array.from({ length: 7 }, (_, index) => ({
+    date: toDateInputValue(addDays(start, index)),
+    tasks: 0,
+    points: 0,
+  }));
+  const statsByDate = new Map(stats.map((day) => [day.date, day]));
+
+  completed.forEach((task) => {
+    const day = statsByDate.get(task.occurrenceDate);
+    if (!day) return;
+
+    day.tasks += 1;
+    day.points += calculatePoints(task);
+  });
+
+  return stats;
+}
+
+function getBestReportDay(dailyStats) {
+  return dailyStats.reduce((best, day) =>
+    day.points > best.points || (day.points === best.points && day.tasks > best.tasks) ? day : best,
+  );
+}
+
+function getQuietReportDay(dailyStats) {
+  return dailyStats.reduce((quiet, day) =>
+    day.points < quiet.points || (day.points === quiet.points && day.tasks < quiet.tasks) ? day : quiet,
+  );
+}
+
+function getTopCompletedType(completed) {
+  const typeStats = new Map();
+
+  completed.forEach((task) => {
+    const stats = typeStats.get(task.type) ?? { type: task.type, tasks: 0, points: 0 };
+    stats.tasks += 1;
+    stats.points += calculatePoints(task);
+    typeStats.set(task.type, stats);
+  });
+
+  return [...typeStats.values()].sort((first, second) => second.points - first.points || second.tasks - first.tasks)[0] ?? {
+    type: "None yet",
+    tasks: 0,
+    points: 0,
+  };
+}
+
+function formatShortWeekday(isoDate) {
+  return parseISODate(isoDate).toLocaleDateString(undefined, { weekday: "short" });
 }
 
 function createWeeklyMetric(label, goalKey, current, previous, formatter) {
@@ -1031,13 +1564,16 @@ function createWeeklyMetric(label, goalKey, current, previous, formatter) {
   const bonusPoints = calculateMetricBonusPoints(change, goal);
   const direction = current > previous ? "up" : current < previous ? "down" : "flat";
   const directionLabel = direction === "up" ? "increase" : direction === "down" ? "decrease" : "no change";
+  const goalMarkup = goalKey
+    ? `<div class="goal-result ${bonusPoints > 0 ? "met" : ""}">${createGoalResultText(goal, change, bonusPoints)}</div>`
+    : "";
 
   return `
     <article class="weekly-metric ${direction}">
       <span>${label}</span>
       <strong>${formatter(current)}</strong>
       <div class="metric-change">${formatPercentChange(change)} ${directionLabel}</div>
-      <div class="goal-result ${bonusPoints > 0 ? "met" : ""}">${createGoalResultText(goal, change, bonusPoints)}</div>
+      ${goalMarkup}
       <small>Previous: ${formatter(previous)}</small>
     </article>
   `;
@@ -1048,7 +1584,7 @@ function createGoalResultText(goal, change, bonusPoints) {
   if (bonusPoints > 0) return `Goal +${goal}% met &middot; +${formatPoints(bonusPoints)} bonus`;
 
   const remaining = Math.max(goal - change, 0);
-  return `Goal +${goal}% · ${formatPoints(remaining)}% to go`;
+  return `Goal +${goal}% &middot; ${formatPoints(remaining)}% to go`;
 }
 
 function calculateWeeklyBonusPoints(report) {
@@ -1210,6 +1746,8 @@ function getChartXTicks(dailyStats, days) {
 }
 
 function matchesCurrentFilter(task) {
+  if (task.skipped) return false;
+
   const filter = scheduleFilter.value;
   const taskDateTime = new Date(`${task.occurrenceDate}T${task.time}`);
   const now = new Date();
@@ -1237,11 +1775,244 @@ function toggleTaskCompletion(task, taskId, occurrenceDate) {
   };
 }
 
+function markTaskComplete(task, taskId, occurrenceDate) {
+  if (task.id !== taskId) return task;
+
+  if (!task.repeats) {
+    return { ...task, done: true };
+  }
+
+  const completedDates = Array.isArray(task.completedDates) ? task.completedDates : [];
+  return {
+    ...task,
+    completedDates: completedDates.includes(occurrenceDate)
+      ? completedDates
+      : [...completedDates, occurrenceDate],
+  };
+}
+
+function moveMissedTask(taskId, occurrenceDate, targetDate) {
+  const sourceTask = tasks.find((task) => task.id === taskId);
+  if (!sourceTask) return;
+
+  if (!sourceTask.repeats) {
+    tasks = tasks.map((task) =>
+      task.id === taskId
+        ? {
+            ...task,
+            date: targetDate,
+            done: false,
+            skipped: false,
+          }
+        : task,
+    );
+    return;
+  }
+
+  tasks = tasks.map((task) => skipTaskOccurrence(task, taskId, occurrenceDate));
+  tasks.push(createSingleTaskFromOccurrence(createOccurrence(sourceTask, occurrenceDate), targetDate));
+}
+
+function createSingleTaskFromOccurrence(task, targetDate) {
+  return {
+    id: crypto.randomUUID(),
+    title: task.title,
+    date: targetDate,
+    time: task.time,
+    duration: Number(task.duration),
+    type: task.type,
+    priority: normalizePriority(task.priority),
+    notes: task.notes ?? "",
+    repeats: false,
+    repeatDays: [],
+    completedDates: [],
+    skippedDates: [],
+    done: false,
+    skipped: false,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function skipTaskOccurrence(task, taskId, occurrenceDate) {
+  if (task.id !== taskId) return task;
+
+  if (!task.repeats) {
+    return { ...task, skipped: true };
+  }
+
+  const skippedDates = Array.isArray(task.skippedDates) ? task.skippedDates : [];
+  return {
+    ...task,
+    skippedDates: skippedDates.includes(occurrenceDate)
+      ? skippedDates
+      : [...skippedDates, occurrenceDate],
+  };
+}
+
+function isActiveTimerFor(task) {
+  return (
+    activeTimer?.taskId === task.id &&
+    activeTimer?.occurrenceDate === task.occurrenceDate
+  );
+}
+
+function isActiveTimerCompleteFor(taskId, occurrenceDate) {
+  return (
+    activeTimer?.taskId === taskId &&
+    activeTimer?.occurrenceDate === occurrenceDate &&
+    isTimerComplete(activeTimer)
+  );
+}
+
+function isTimerComplete(timer) {
+  return Boolean(timer) && getTimerRemainingMs(timer) === 0;
+}
+
+function syncActiveTimerWithTasks() {
+  if (!activeTimer) return;
+
+  const matchingTask = tasks.find((task) => task.id === activeTimer.taskId);
+  if (!matchingTask) {
+    clearActiveTimer();
+    return;
+  }
+
+  const occurrence = createOccurrence(matchingTask, activeTimer.occurrenceDate);
+  if (occurrence.done || occurrence.skipped) {
+    clearActiveTimer();
+  }
+}
+
+function renderFocusOverlay(occurrences) {
+  if (!featureSettings.focusMode || !activeTimer) {
+    focusOverlay.classList.remove("visible");
+    focusOverlay.innerHTML = "";
+    return;
+  }
+
+  const activeTask = occurrences.find((task) => isActiveTimerFor(task));
+  if (!activeTask) {
+    focusOverlay.classList.remove("visible");
+    focusOverlay.innerHTML = "";
+    return;
+  }
+
+  const timerComplete = isTimerComplete(activeTimer);
+  focusOverlay.classList.add("visible");
+  focusOverlay.innerHTML = `
+    <section class="focus-card" ${createTypeStyleAttribute(activeTask.type)}>
+      <span class="report-kicker">Focus mode</span>
+      <h2>${escapeHTML(activeTask.title)}</h2>
+      <p>${escapeHTML(activeTask.type)} &middot; ${activeTask.duration} min &middot; ${formatTimeRange(activeTask)}</p>
+      <strong class="focus-countdown" data-timer-countdown>${formatTimerRemaining(activeTimer)}</strong>
+      <div class="focus-progress" aria-hidden="true">
+        <span data-timer-progress style="width: ${calculateTimerProgress(activeTimer)}%"></span>
+      </div>
+      <div class="focus-actions">
+        <button class="primary-button" data-focus-action="finish" data-active-finish type="button" ${timerComplete ? "" : "disabled"}>
+          Finish
+        </button>
+        <button class="secondary-button" data-focus-action="off" type="button">Turn off focus</button>
+      </div>
+    </section>
+  `;
+}
+
+function clearActiveTimerFor(taskId, occurrenceDate) {
+  if (activeTimer?.taskId === taskId && activeTimer?.occurrenceDate === occurrenceDate) {
+    clearActiveTimer();
+  }
+}
+
+function clearActiveTimer() {
+  activeTimer = null;
+  localStorage.removeItem(TIMER_STORAGE_KEY);
+  stopTimerInterval();
+}
+
+function saveActiveTimer() {
+  if (!activeTimer) return;
+  localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(activeTimer));
+}
+
+function loadActiveTimer() {
+  try {
+    const savedTimer = JSON.parse(localStorage.getItem(TIMER_STORAGE_KEY));
+    if (!savedTimer?.taskId || !savedTimer?.occurrenceDate || !savedTimer?.startedAt) return null;
+
+    return {
+      taskId: savedTimer.taskId,
+      occurrenceDate: savedTimer.occurrenceDate,
+      duration: Number(savedTimer.duration),
+      startedAt: Number(savedTimer.startedAt),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function ensureTimerInterval() {
+  if (!activeTimer || timerInterval) return;
+  timerInterval = setInterval(updateTimerDisplay, 1000);
+}
+
+function stopTimerInterval() {
+  if (!timerInterval) return;
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+function updateTimerDisplay() {
+  if (!activeTimer) return;
+  const timerComplete = isTimerComplete(activeTimer);
+
+  document.querySelectorAll("[data-timer-countdown]").forEach((element) => {
+    element.textContent = formatTimerRemaining(activeTimer);
+    element.classList.toggle("time-up", timerComplete);
+  });
+
+  document.querySelectorAll("[data-active-finish]").forEach((button) => {
+    button.disabled = !timerComplete;
+    button.title = timerComplete ? "Finish task" : "Finish unlocks when the timer ends";
+  });
+
+  document.querySelectorAll("[data-timer-progress]").forEach((element) => {
+    element.style.width = `${calculateTimerProgress(activeTimer)}%`;
+  });
+}
+
+function getTimerRemainingMs(timer) {
+  const totalMs = Number(timer.duration) * 60 * 1000;
+  const elapsedMs = Date.now() - Number(timer.startedAt);
+  return Math.max(totalMs - elapsedMs, 0);
+}
+
+function calculateTimerProgress(timer) {
+  const totalMs = Number(timer.duration) * 60 * 1000;
+  if (!totalMs) return 0;
+
+  return clamp((1 - getTimerRemainingMs(timer) / totalMs) * 100, 0, 100);
+}
+
+function formatTimerRemaining(timer) {
+  const remainingSeconds = Math.ceil(getTimerRemainingMs(timer) / 1000);
+  if (remainingSeconds <= 0) return "Time's up";
+
+  const hours = Math.floor(remainingSeconds / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+  const seconds = remainingSeconds % 60;
+  const minuteSecondLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  return hours > 0 ? `${hours}:${minuteSecondLabel}` : minuteSecondLabel;
+}
+
 function resetForm() {
   taskForm.reset();
   taskDateInput.value = todayISO;
-  document.querySelector("#taskDuration").value = "30";
+  taskDurationInput.value = "30";
   taskTypeInput.value = BUILT_IN_TASK_TYPES[0];
+  taskPriorityInput.value = "Medium";
+  taskTemplateSelect.value = "";
   customTaskTypeInput.value = "";
   toggleCustomTypeInput();
 }
@@ -1259,10 +2030,68 @@ function setRepeatDayForDate(dateValue) {
   });
 }
 
+function setRepeatDays(days) {
+  const selectedDays = new Set((Array.isArray(days) ? days : []).map(Number));
+  document.querySelectorAll('input[name="repeatDays"]').forEach((input) => {
+    input.checked = selectedDays.has(Number(input.value));
+  });
+}
+
 function createRepeatLabel(repeatDays) {
   if (!repeatDays.length) return "Weekly";
   if (repeatDays.length === 7) return "Every day";
   return `Weekly: ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}`;
+}
+
+function createPriorityChip(task) {
+  if (!featureSettings.priorities) return "";
+
+  const priority = normalizePriority(task.priority);
+  return `<span class="chip priority-chip priority-${priority.toLowerCase()}">${priority}</span>`;
+}
+
+function createStreakChip(type) {
+  if (!featureSettings.streaks) return "";
+
+  const streak = currentTypeStreaks.get(type) ?? 0;
+  return streak > 0 ? `<span class="chip streak-chip">${streak} day streak</span>` : "";
+}
+
+function buildTypeStreakMap(completedHistory) {
+  const datesByType = new Map();
+
+  completedHistory.forEach((task) => {
+    if (!datesByType.has(task.type)) {
+      datesByType.set(task.type, new Set());
+    }
+
+    datesByType.get(task.type).add(task.occurrenceDate);
+  });
+
+  return new Map(
+    [...datesByType.entries()].map(([type, dates]) => [type, calculateCurrentStreak(dates)]),
+  );
+}
+
+function calculateCurrentStreak(dateSet) {
+  let cursor = startOfToday(today);
+  let streak = 0;
+
+  if (!dateSet.has(todayISO)) {
+    cursor = addDays(cursor, -1);
+  }
+
+  while (dateSet.has(toDateInputValue(cursor))) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  return streak;
+}
+
+function normalizePriority(value) {
+  const priority = String(value ?? "Medium");
+  return PRIORITY_LEVELS.includes(priority) ? priority : "Medium";
 }
 
 function calculatePoints(task) {
@@ -1271,6 +2100,14 @@ function calculatePoints(task) {
 
 function formatPoints(points) {
   return Number.isInteger(points) ? String(points) : points.toFixed(1);
+}
+
+function formatMinutesAsHours(minutes) {
+  if (minutes === 0) return "0h";
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
 }
 
 function applyTheme(theme) {
@@ -1305,6 +2142,17 @@ function applyAccentTheme(theme, shouldSave = true) {
   });
 }
 
+function applyFeatureSettingsToControls() {
+  featureToggleInputs.forEach((input) => {
+    input.checked = Boolean(featureSettings[input.dataset.featureToggle]);
+  });
+  applyFeatureVisibility();
+}
+
+function applyFeatureVisibility() {
+  priorityField.classList.toggle("hidden", !featureSettings.priorities);
+}
+
 function openMenu() {
   sideMenu.classList.add("open");
   drawerOverlay.classList.add("open");
@@ -1327,6 +2175,14 @@ function saveCustomTaskTypes() {
 
 function saveWeeklyGoals() {
   localStorage.setItem(GOAL_STORAGE_KEY, JSON.stringify(weeklyGoals));
+}
+
+function saveFeatureSettings() {
+  localStorage.setItem(FEATURE_STORAGE_KEY, JSON.stringify(featureSettings));
+}
+
+function saveTaskTemplates() {
+  localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(taskTemplates));
 }
 
 function loadTasks() {
@@ -1353,6 +2209,36 @@ function loadWeeklyGoals() {
   }
 }
 
+function loadFeatureSettings() {
+  try {
+    return normalizeFeatureSettings(JSON.parse(localStorage.getItem(FEATURE_STORAGE_KEY)) ?? {});
+  } catch {
+    return normalizeFeatureSettings({});
+  }
+}
+
+function loadTaskTemplates() {
+  try {
+    const savedTemplates = JSON.parse(localStorage.getItem(TEMPLATE_STORAGE_KEY)) ?? [];
+    return savedTemplates.map(normalizeTaskTemplate).filter((template) => template.title && template.type);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeFeatureSettings(savedSettings) {
+  return {
+    ...Object.fromEntries(
+      Object.keys(DEFAULT_FEATURE_SETTINGS).map((key) => [
+        key,
+        Object.prototype.hasOwnProperty.call(savedSettings, key)
+          ? Boolean(savedSettings[key])
+          : DEFAULT_FEATURE_SETTINGS[key],
+      ]),
+    ),
+  };
+}
+
 function normalizeWeeklyGoals(savedGoals) {
   return {
     points: normalizeGoalValue(savedGoals.points),
@@ -1373,10 +2259,26 @@ function applyWeeklyGoalsToControls() {
 function normalizeTasks(savedTasks) {
   return savedTasks.map((task) => ({
     ...task,
+    priority: normalizePriority(task.priority),
     repeats: Boolean(task.repeats),
     repeatDays: Array.isArray(task.repeatDays) ? task.repeatDays.map(Number) : [],
     completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
+    skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates : [],
+    skipped: Boolean(task.skipped),
   }));
+}
+
+function normalizeTaskTemplate(template) {
+  return {
+    id: template.id || crypto.randomUUID(),
+    title: String(template.title ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
+    duration: clamp(Number(template.duration) || 30, 15, 300),
+    type: normalizeTaskTypeName(template.type),
+    notes: String(template.notes ?? "").trim().slice(0, 400),
+    priority: normalizePriority(template.priority),
+    repeats: Boolean(template.repeats),
+    repeatDays: Array.isArray(template.repeatDays) ? template.repeatDays.map(Number).filter((day) => day >= 0 && day <= 6) : [],
+  };
 }
 
 function toDateInputValue(date) {
