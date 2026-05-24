@@ -108,6 +108,91 @@
       </aside>
 
       <div class="focus-overlay" id="focusOverlay" aria-live="polite"></div>
+      <div class="edit-overlay hidden" id="editTaskOverlay" aria-hidden="true">
+        <section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editTaskTitle">
+          <form id="editTaskForm">
+            <input id="editTaskId" name="id" type="hidden" />
+            <input id="editOccurrenceDate" name="occurrenceDate" type="hidden" />
+            <div class="form-header">
+              <p class="eyebrow">Edit task</p>
+              <h2 id="editTaskTitle">Update task</h2>
+            </div>
+
+            <label>
+              Task name
+              <input id="editTaskName" name="title" type="text" required />
+            </label>
+
+            <div class="field-row date-time-row">
+              <label>
+                Date
+                <input id="editTaskDate" name="date" type="date" required />
+              </label>
+              <label>
+                Estimated start
+                <input id="editTaskTime" name="time" type="time" required />
+              </label>
+            </div>
+
+            <div class="field-row field-row-three">
+              <label>
+                Duration
+                <select id="editTaskDuration" name="duration">
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">1 hour</option>
+                  <option value="90">1.5 hours</option>
+                  <option value="120">2 hours</option>
+                  <option value="150">2.5 hours</option>
+                  <option value="180">3 hours</option>
+                  <option value="240">4 hours</option>
+                  <option value="300">5 hours</option>
+                </select>
+              </label>
+              <label>
+                Type
+                <input id="editTaskType" name="type" type="text" maxlength="24" required />
+              </label>
+              <label>
+                Priority
+                <select id="editTaskPriority" name="priority">
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Notes
+              <textarea id="editTaskNotes" name="notes" rows="3"></textarea>
+            </label>
+
+            <fieldset class="repeat-box">
+              <legend>Repeat</legend>
+              <label class="repeat-toggle">
+                <input id="editTaskRepeats" name="repeats" type="checkbox" />
+                Repeat this task every week
+              </label>
+              <div class="weekday-picker" aria-label="Edit repeat days">
+                <label><input name="editRepeatDays" type="checkbox" value="1" /> Mon</label>
+                <label><input name="editRepeatDays" type="checkbox" value="2" /> Tue</label>
+                <label><input name="editRepeatDays" type="checkbox" value="3" /> Wed</label>
+                <label><input name="editRepeatDays" type="checkbox" value="4" /> Thu</label>
+                <label><input name="editRepeatDays" type="checkbox" value="5" /> Fri</label>
+                <label><input name="editRepeatDays" type="checkbox" value="6" /> Sat</label>
+                <label><input name="editRepeatDays" type="checkbox" value="0" /> Sun</label>
+              </div>
+            </fieldset>
+
+            <div class="edit-actions">
+              <button class="secondary-button ghost-button" id="cancelEditTask" type="button">Cancel</button>
+              <button class="primary-button" type="submit">Save changes</button>
+            </div>
+          </form>
+        </section>
+      </div>
 
       <section class="tab-panel active" id="homePanel" aria-labelledby="Home">
         <section class="daily-dashboard hidden" id="dailyDashboard" aria-label="Daily dashboard"></section>
@@ -269,11 +354,11 @@
         <div class="schedule-header">
           <div>
             <h2>Completed Tasks</h2>
-            <p>Tasks you finished today, with points earned from each one.</p>
+            <p>Tasks you finished today, with xp earned from each one.</p>
           </div>
           <div class="points-total">
             <span id="completedPoints">0</span>
-            <small>points today</small>
+            <small>xp today</small>
           </div>
         </div>
 
@@ -289,7 +374,7 @@
         <div class="schedule-header">
           <div>
             <h2>Stats</h2>
-            <p>Your completed tasks and points across recent time windows.</p>
+            <p>Your completed tasks and xp across recent time windows.</p>
           </div>
           <select id="statsRange" class="stats-range-select" aria-label="Stats time period">
             <option value="7">Last 7 days</option>
@@ -301,12 +386,12 @@
         <section class="weekly-goals-card" aria-labelledby="weeklyGoalsTitle">
           <div>
             <h3 id="weeklyGoalsTitle">Weekly Goals</h3>
-            <p>Set a points improvement goal for your next Monday report.</p>
+            <p>Set an xp improvement goal for your next Monday report.</p>
           </div>
           <div class="goal-controls">
             <label>
-              Points goal
-              <select class="weekly-goal-select" data-goal="points" aria-label="Points improvement goal">
+              xp goal
+              <select class="weekly-goal-select" data-goal="points" aria-label="xp improvement goal">
                 <option value="0">No goal</option>
                 <option value="10">+10%</option>
                 <option value="20">+20%</option>

@@ -62,6 +62,19 @@ const sideMenu = document.querySelector("#sideMenu");
 const drawerOverlay = document.querySelector("#drawerOverlay");
 const colourThemeButtons = document.querySelectorAll(".colour-button");
 const focusOverlay = document.querySelector("#focusOverlay");
+const editTaskOverlay = document.querySelector("#editTaskOverlay");
+const editTaskForm = document.querySelector("#editTaskForm");
+const editTaskIdInput = document.querySelector("#editTaskId");
+const editOccurrenceDateInput = document.querySelector("#editOccurrenceDate");
+const editTaskNameInput = document.querySelector("#editTaskName");
+const editTaskDateInput = document.querySelector("#editTaskDate");
+const editTaskTimeInput = document.querySelector("#editTaskTime");
+const editTaskDurationInput = document.querySelector("#editTaskDuration");
+const editTaskTypeInput = document.querySelector("#editTaskType");
+const editTaskPriorityInput = document.querySelector("#editTaskPriority");
+const editTaskNotesInput = document.querySelector("#editTaskNotes");
+const editTaskRepeatsInput = document.querySelector("#editTaskRepeats");
+const cancelEditTaskButton = document.querySelector("#cancelEditTask");
 
 let tasks = loadTasks();
 let customTaskTypes = mergeCustomTaskTypes(loadCustomTaskTypes(), tasks.map((task) => task.type));
@@ -80,6 +93,8 @@ let activeTimer = loadActiveTimer();
 let timerInterval = null;
 let currentTypeStreaks = new Map();
 let missedTasksCollapsed = localStorage.getItem(MISSED_COLLAPSE_STORAGE_KEY) === "true";
+let holdToEditTimer = null;
+let holdToEditTarget = null;
 
 const TASK_TYPE_STYLES = {
   Focus: { color: "#2d6f9f", bg: "rgba(45, 111, 159, 0.14)" },
@@ -352,6 +367,18 @@ taskList.addEventListener("click", (event) => {
   render();
 });
 
+[taskList, scheduleGrid].forEach((container) => {
+  container.addEventListener("pointerdown", startHoldToEdit);
+  container.addEventListener("pointerup", clearHoldToEdit);
+  container.addEventListener("pointerleave", clearHoldToEdit);
+  container.addEventListener("pointercancel", clearHoldToEdit);
+  container.addEventListener("contextmenu", (event) => {
+    if (event.target.closest("[data-task-id][data-occurrence-date]")) {
+      event.preventDefault();
+    }
+  });
+});
+
 missedTaskList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-missed-action]");
   if (!button) return;
@@ -380,6 +407,12 @@ missedTaskList.addEventListener("click", (event) => {
 
   saveTasks();
   render();
+});
+
+editTaskForm.addEventListener("submit", saveEditedTask);
+cancelEditTaskButton.addEventListener("click", closeEditTask);
+editTaskOverlay.addEventListener("click", (event) => {
+  if (event.target === editTaskOverlay) closeEditTask();
 });
 
 collapseMissedButton.addEventListener("click", () => {
@@ -620,7 +653,7 @@ function renderDailyDashboard(occurrences) {
     </div>
     <div class="dashboard-grid">
       <article class="dashboard-card">
-        <span>Points</span>
+        <span>xp</span>
         <strong>${formatPoints(pointsToday)}</strong>
         <small>${formatMinutesAsHours(minutesToday)} completed</small>
       </article>
@@ -683,6 +716,124 @@ function getNextTodayTask(todaysTasks) {
   const now = new Date();
   const upcoming = todaysTasks.find((task) => new Date(`${task.occurrenceDate}T${task.time}`) >= now);
   return upcoming ?? todaysTasks[0] ?? null;
+}
+
+function startHoldToEdit(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  if (event.target.closest("button, input, select, textarea, a")) return;
+
+  const taskCard = event.target.closest("[data-task-id][data-occurrence-date]");
+  if (!taskCard) return;
+
+  holdToEditTarget = taskCard;
+  holdToEditTimer = setTimeout(() => {
+    openEditTask(taskCard.dataset.taskId, taskCard.dataset.occurrenceDate);
+    holdToEditTarget = null;
+  }, 650);
+}
+
+function clearHoldToEdit() {
+  if (holdToEditTimer) {
+    clearTimeout(holdToEditTimer);
+  }
+
+  holdToEditTimer = null;
+  holdToEditTarget = null;
+}
+
+function openEditTask(taskId, occurrenceDate) {
+  clearHoldToEdit();
+  const task = tasks.find((savedTask) => savedTask.id === taskId);
+  if (!task) return;
+
+  const occurrence = createOccurrence(task, occurrenceDate);
+  editTaskIdInput.value = taskId;
+  editOccurrenceDateInput.value = occurrenceDate;
+  editTaskNameInput.value = occurrence.title;
+  editTaskDateInput.value = occurrence.occurrenceDate;
+  editTaskTimeInput.value = occurrence.time;
+  editTaskDurationInput.value = String(occurrence.duration);
+  editTaskTypeInput.value = occurrence.type;
+  editTaskPriorityInput.value = normalizePriority(occurrence.priority);
+  editTaskNotesInput.value = occurrence.notes ?? "";
+  editTaskRepeatsInput.checked = Boolean(task.repeats);
+  setEditRepeatDays(task.repeats ? task.repeatDays : []);
+
+  editTaskOverlay.classList.remove("hidden");
+  editTaskOverlay.setAttribute("aria-hidden", "false");
+  editTaskNameInput.focus();
+}
+
+function closeEditTask() {
+  editTaskOverlay.classList.add("hidden");
+  editTaskOverlay.setAttribute("aria-hidden", "true");
+  editTaskForm.reset();
+}
+
+function saveEditedTask(event) {
+  event.preventDefault();
+
+  const taskId = editTaskIdInput.value;
+  const occurrenceDate = editOccurrenceDateInput.value;
+  const title = editTaskNameInput.value.trim();
+  const date = editTaskDateInput.value;
+  const time = editTaskTimeInput.value;
+  const type = normalizeTaskTypeName(editTaskTypeInput.value);
+  const duration = Number(editTaskDurationInput.value);
+  const repeats = editTaskRepeatsInput.checked;
+  const repeatDays = repeats ? getEditRepeatDays() : [];
+  const nextRepeatDays = repeats && repeatDays.length === 0 ? [weekdayForISODate(date)] : repeatDays;
+
+  if (!title || !date || !time || !type) return;
+
+  tasks = tasks.map((task) => {
+    if (task.id !== taskId) return task;
+
+    return {
+      ...task,
+      title,
+      date,
+      time,
+      duration,
+      type,
+      priority: normalizePriority(editTaskPriorityInput.value),
+      notes: editTaskNotesInput.value.trim(),
+      repeats,
+      repeatDays: repeats ? nextRepeatDays : [],
+      done: repeats ? false : task.repeats ? false : Boolean(task.done),
+      skipped: repeats ? false : Boolean(task.skipped),
+      completedDates: repeats ? (Array.isArray(task.completedDates) ? task.completedDates : []) : [],
+      skippedDates: repeats ? (Array.isArray(task.skippedDates) ? task.skippedDates : []) : [],
+      earnedPointsByDate: repeats ? (task.earnedPointsByDate ?? {}) : {},
+      actualMinutesByDate: repeats ? (task.actualMinutesByDate ?? {}) : {},
+    };
+  });
+
+  if (activeTimer?.taskId === taskId && activeTimer?.occurrenceDate === occurrenceDate) {
+    activeTimer = {
+      ...activeTimer,
+      duration,
+    };
+    saveActiveTimer();
+  }
+
+  saveCustomTaskType(type);
+  saveTasks();
+  closeEditTask();
+  render();
+}
+
+function getEditRepeatDays() {
+  return [...document.querySelectorAll('input[name="editRepeatDays"]:checked')]
+    .map((input) => Number(input.value))
+    .sort((a, b) => a - b);
+}
+
+function setEditRepeatDays(days) {
+  const selectedDays = new Set((Array.isArray(days) ? days : []).map(Number));
+  document.querySelectorAll('input[name="editRepeatDays"]').forEach((input) => {
+    input.checked = selectedDays.has(Number(input.value));
+  });
 }
 
 function renderMissedTasks() {
@@ -756,7 +907,7 @@ function createTaskCard(task) {
   const timerButton = task.done
     ? ""
     : isTimerActive
-      ? `<button class="icon-button finish" type="button" data-action="finish" title="Finish now and earn points for elapsed time" aria-label="Finish task" data-active-finish>Finish</button>`
+      ? `<button class="icon-button finish" type="button" data-action="finish" title="Finish now and earn xp for elapsed time" aria-label="Finish task" data-active-finish>Finish</button>`
       : `<button class="icon-button start" type="button" data-action="start" title="Start task" aria-label="Start task" ${canStartTimer ? "" : "disabled"}>Start</button>`;
   const undoButton = task.done
     ? `
@@ -831,7 +982,7 @@ function createCompletedTaskCard(task) {
           <span class="chip">${escapeHTML(repeatLabel)}</span>
         </div>
       </div>
-      <div class="points-chip">+${formatPoints(points)} pts</div>
+      <div class="points-chip">+${formatPoints(points)} xp</div>
     </article>
   `;
 }
@@ -1080,6 +1231,8 @@ function createTimelineTask(item, bounds, extraClass = "") {
   return `
     <article
       class="timeline-task ${extraClass} duration-${task.duration} ${task.done ? "done" : ""}"
+      data-task-id="${task.id}"
+      data-occurrence-date="${task.occurrenceDate}"
       style="--task-top: ${top.toFixed(2)}%; --task-height: ${height.toFixed(2)}%; --task-left: ${laneLeft.toFixed(2)}%; --task-width: ${laneWidth.toFixed(2)}%; --type-color: ${typeStyle.color}; --type-bg: ${typeStyle.bg};"
     >
       <span class="timeline-time">${formatTimeRange(task)}</span>
@@ -1413,11 +1566,11 @@ function createStatsPanel(completedHistory) {
       <div class="stats-overview">
         <div>
           <h3>${getStatsRangeLabel(days)}</h3>
-          <p>Points earned from completed tasks in this time period.</p>
+          <p>xp earned from completed tasks in this time period.</p>
         </div>
         <div class="stat-summary-row">
           <div>
-            <span>Points</span>
+            <span>xp</span>
             <strong>${formatPoints(totalPoints)}</strong>
           </div>
           <div>
@@ -1449,16 +1602,16 @@ function createWeeklyReport(completedHistory) {
         <div class="report-score-stack">
           <div class="report-score">
             <strong>${formatPoints(report.current.points)}</strong>
-            <span>points last week</span>
+            <span>xp last week</span>
           </div>
           <div class="report-score bonus-score">
             <strong>+${formatPoints(bonusPoints)}</strong>
-            <span>bonus points</span>
+            <span>bonus xp</span>
           </div>
         </div>
       </div>
       <div class="weekly-metrics">
-        ${createWeeklyMetric("Points", "points", report.current.points, report.previous.points, formatPoints)}
+        ${createWeeklyMetric("xp", "points", report.current.points, report.previous.points, formatPoints)}
         ${createWeeklyMetric("Hours", null, report.current.hours, report.previous.hours, formatHours)}
         ${createWeeklyMetric("Tasks", null, report.current.tasks, report.previous.tasks, String)}
       </div>
@@ -1510,22 +1663,22 @@ function createWeeklyHighlights(metrics) {
       <article>
         <span>Best day</span>
         <strong>${formatShortWeekday(bestDay.date)}</strong>
-        <small>${formatPoints(bestDay.points)} pts &middot; ${bestDay.tasks} tasks</small>
+        <small>${formatPoints(bestDay.points)} xp &middot; ${bestDay.tasks} tasks</small>
       </article>
       <article>
         <span>Quiet day</span>
         <strong>${formatShortWeekday(quietDay.date)}</strong>
-        <small>${formatPoints(quietDay.points)} pts &middot; ${quietDay.tasks} tasks</small>
+        <small>${formatPoints(quietDay.points)} xp &middot; ${quietDay.tasks} tasks</small>
       </article>
       <article>
         <span>Average</span>
         <strong>${formatPoints(metrics.points / 7)}</strong>
-        <small>points per day</small>
+        <small>xp per day</small>
       </article>
       <article>
         <span>Top type</span>
         <strong>${escapeHTML(topType.type)}</strong>
-        <small>${formatPoints(topType.points)} pts from ${topType.tasks} tasks</small>
+        <small>${formatPoints(topType.points)} xp from ${topType.tasks} tasks</small>
       </article>
     </div>
   `;
@@ -1606,7 +1759,7 @@ function createWeeklyMetric(label, goalKey, current, previous, formatter) {
 
 function createGoalResultText(goal, change, bonusPoints) {
   if (goal === 0) return "No goal set";
-  if (bonusPoints > 0) return `Goal +${goal}% met &middot; +${formatPoints(bonusPoints)} bonus`;
+  if (bonusPoints > 0) return `Goal +${goal}% met &middot; +${formatPoints(bonusPoints)} bonus xp`;
 
   const remaining = Math.max(goal - change, 0);
   return `Goal +${goal}% &middot; ${formatPoints(remaining)}% to go`;
@@ -1629,11 +1782,11 @@ function createWeeklyReportSummary(report) {
   const decreasedCount = trackedMetrics.filter((metric) => report.current[metric] < report.previous[metric]).length;
 
   if (improvedCount === trackedMetrics.length) {
-    return "Great week. Points, hours, and completed tasks all increased compared with the week before.";
+    return "Great week. xp, hours, and completed tasks all increased compared with the week before.";
   }
 
   if (decreasedCount === trackedMetrics.length) {
-    return "This week was lighter across points, hours, and tasks. The report gives you a clean reset for the next week.";
+    return "This week was lighter across xp, hours, and tasks. The report gives you a clean reset for the next week.";
   }
 
   if (improvedCount === 0 && decreasedCount === 0) {
@@ -1723,11 +1876,11 @@ function createPointsChart(dailyStats, days) {
     .join("");
 
   return `
-    <svg class="line-chart detailed-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Points earned over ${days} days">
+    <svg class="line-chart detailed-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="xp earned over ${days} days">
       ${yAxis}
       <line class="chart-axis" x1="${chartLeft}" y1="${chartTop}" x2="${chartLeft}" y2="${chartTop + chartHeight}"></line>
       <line class="chart-axis" x1="${chartLeft}" y1="${chartTop + chartHeight}" x2="${width - chartRight}" y2="${chartTop + chartHeight}"></line>
-      <text class="chart-axis-title chart-axis-title-y" x="18" y="${chartTop + chartHeight / 2}" transform="rotate(-90 18 ${chartTop + chartHeight / 2})">Points</text>
+      <text class="chart-axis-title chart-axis-title-y" x="18" y="${chartTop + chartHeight / 2}" transform="rotate(-90 18 ${chartTop + chartHeight / 2})">xp</text>
       <text class="chart-axis-title" x="${chartLeft + chartWidth / 2}" y="${height - 6}">Time</text>
       ${xAxis}
       <polygon class="chart-area" points="${areaPoints}"></polygon>
@@ -2031,7 +2184,7 @@ function updateTimerDisplay() {
 
   document.querySelectorAll("[data-active-finish]").forEach((button) => {
     button.disabled = false;
-    button.title = timerComplete ? "Finish task" : "Finish now and earn points for elapsed time";
+    button.title = timerComplete ? "Finish task" : "Finish now and earn xp for elapsed time";
   });
 
   document.querySelectorAll("[data-timer-progress]").forEach((element) => {
