@@ -93,6 +93,7 @@ const signupButton = document.querySelector("#signupButton");
 const authSession = document.querySelector("#authSession");
 const authUserLabel = document.querySelector("#authUserLabel");
 const cloudStatus = document.querySelector("#cloudStatus");
+const loadCloudButton = document.querySelector("#loadCloudButton");
 const syncNowButton = document.querySelector("#syncNowButton");
 const logoutButton = document.querySelector("#logoutButton");
 const menuButton = document.querySelector("#menuButton");
@@ -324,6 +325,7 @@ profilePhotoInput.addEventListener("change", updateProfilePhoto);
 removeProfilePhotoButton.addEventListener("click", removeProfilePhoto);
 authForm.addEventListener("submit", signInWithEmail);
 signupButton.addEventListener("click", signUpWithEmail);
+loadCloudButton.addEventListener("click", loadCloudData);
 syncNowButton.addEventListener("click", saveCloudDataNow);
 logoutButton.addEventListener("click", signOut);
 menuButton.addEventListener("click", openMenu);
@@ -2627,9 +2629,20 @@ function setCloudStatus(message) {
 }
 
 async function loadCloudData() {
-  if (!supabaseClient || !cloudUser || isLoadingCloudData) return;
+  if (!supabaseClient) {
+    setCloudStatus("Cloud login is not loaded. Check your internet connection and refresh.");
+    return;
+  }
+
+  if (!cloudUser) {
+    setCloudStatus("Log in first, then load your cloud schedule.");
+    return;
+  }
+
+  if (isLoadingCloudData) return;
 
   isLoadingCloudData = true;
+  setCloudButtonsBusy(true);
   setCloudStatus("Loading cloud schedule...");
 
   const { data, error } = await supabaseClient
@@ -2639,20 +2652,21 @@ async function loadCloudData() {
     .maybeSingle();
 
   isLoadingCloudData = false;
+  setCloudButtonsBusy(false);
 
   if (error) {
-    setCloudStatus("Cloud table is not ready yet. Run supabase-setup.sql in Supabase, then press Sync now.");
+    setCloudStatus(getCloudErrorMessage(error, "load"));
     console.error(error);
     return;
   }
 
   if (data?.data?.version) {
     applyCloudSnapshot(data.data);
-    setCloudStatus("Cloud schedule loaded.");
+    setCloudStatus("Cloud schedule loaded. Make sure every device uses this same login email.");
     return;
   }
 
-  await saveCloudDataNow();
+  setCloudStatus("No cloud schedule found yet. Upload this device to create one.");
 }
 
 function queueCloudSave() {
@@ -2663,14 +2677,26 @@ function queueCloudSave() {
 }
 
 async function saveCloudDataNow() {
-  if (!supabaseClient || !cloudUser || isApplyingCloudData) return;
+  if (!supabaseClient) {
+    setCloudStatus("Cloud login is not loaded. Check your internet connection and refresh.");
+    return;
+  }
+
+  if (!cloudUser) {
+    setCloudStatus("Log in first, then upload this device.");
+    return;
+  }
+
+  if (isApplyingCloudData) return;
 
   clearTimeout(cloudSaveTimeout);
+  setCloudButtonsBusy(true);
   const snapshot = createCloudSnapshot();
   const serializedSnapshot = JSON.stringify(snapshot);
 
   if (serializedSnapshot === lastCloudSaveSnapshot) {
     setCloudStatus("Already synced.");
+    setCloudButtonsBusy(false);
     return;
   }
 
@@ -2687,13 +2713,37 @@ async function saveCloudDataNow() {
     );
 
   if (error) {
-    setCloudStatus("Could not sync yet. Check the Supabase table setup.");
+    setCloudStatus(getCloudErrorMessage(error, "upload"));
+    setCloudButtonsBusy(false);
     console.error(error);
     return;
   }
 
   lastCloudSaveSnapshot = serializedSnapshot;
-  setCloudStatus("Synced just now.");
+  setCloudButtonsBusy(false);
+  setCloudStatus("Uploaded just now. Log in with this same email on the other device, then tap Load cloud.");
+}
+
+function setCloudButtonsBusy(isBusy) {
+  loadCloudButton.disabled = isBusy;
+  syncNowButton.disabled = isBusy;
+}
+
+function getCloudErrorMessage(error, action) {
+  const message = String(error?.message ?? "");
+  if (message.toLowerCase().includes("relation") || message.toLowerCase().includes("does not exist")) {
+    return "Cloud table is missing. Run supabase-setup.sql in Supabase SQL Editor first.";
+  }
+
+  if (message.toLowerCase().includes("row-level security") || message.toLowerCase().includes("permission")) {
+    return "Supabase security rules are blocking sync. Run supabase-setup.sql again in SQL Editor.";
+  }
+
+  if (message.toLowerCase().includes("jwt") || message.toLowerCase().includes("auth")) {
+    return "Login expired. Log out, log back in, then try again.";
+  }
+
+  return `Could not ${action} yet: ${message || "check your Supabase setup and internet connection."}`;
 }
 
 function createCloudSnapshot() {

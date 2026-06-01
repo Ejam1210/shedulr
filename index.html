@@ -78,6 +78,7 @@
             <div>
               <h3 id="cloudLoginTitle">Cloud Login</h3>
               <p id="cloudStatus">Sign in to sync this schedule across your devices.</p>
+              <small class="cloud-help">Use the same email on every device. Different login accounts do not share schedules.</small>
             </div>
 
             <form class="auth-form" id="authForm">
@@ -101,7 +102,8 @@
                 <small>Your profile data syncs to Supabase.</small>
               </div>
               <div class="auth-actions">
-                <button class="secondary-button" id="syncNowButton" type="button">Sync now</button>
+                <button class="secondary-button" id="loadCloudButton" type="button">Load cloud</button>
+                <button class="secondary-button" id="syncNowButton" type="button">Upload</button>
                 <button class="danger-button" id="logoutButton" type="button">Log out</button>
               </div>
             </div>
