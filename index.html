@@ -169,7 +169,7 @@
             <label class="setting-toggle">
               <span>
                 <strong>Task streaks</strong>
-                <small>Track streaks for task types.</small>
+                <small>Show the fire streak HUD and streak chips.</small>
               </span>
               <input type="checkbox" data-feature-toggle="streaks" />
             </label>
@@ -409,13 +409,19 @@
               <button class="view-button active" data-view="list" type="button">List</button>
               <button class="view-button" data-view="grid" type="button">Grid</button>
             </div>
+            <div class="schedule-date-controls" aria-label="Schedule date navigation">
+              <button id="schedulePrevDate" type="button" aria-label="Previous date">&lt;</button>
+              <input id="scheduleDatePicker" type="date" aria-label="Schedule date" />
+              <button id="scheduleNextDate" type="button" aria-label="Next date">&gt;</button>
+              <button id="scheduleTodayButton" type="button">Today</button>
+            </div>
             <select id="scheduleGridRange" class="grid-range-select view-only-grid" aria-label="Grid time range">
-              <option value="week">This week</option>
-              <option value="day">Today</option>
+              <option value="week">Week</option>
+              <option value="day">Day</option>
             </select>
             <select id="scheduleFilter" class="view-only-list" aria-label="Filter schedule">
               <option value="all">All tasks</option>
-              <option value="today">Today</option>
+              <option value="today">Selected day</option>
               <option value="upcoming">Upcoming</option>
               <option value="done">Completed</option>
             </select>

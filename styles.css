@@ -1267,6 +1267,7 @@ textarea:focus {
 .schedule-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   min-width: min(560px, 100%);
@@ -1280,6 +1281,47 @@ textarea:focus {
 
 .schedule-controls.grid-mode .view-only-grid {
   display: block;
+}
+
+.schedule-date-controls {
+  display: grid;
+  grid-template-columns: 36px minmax(128px, 158px) 36px auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  border-radius: 8px;
+  background: var(--quiet-control-bg);
+  padding: 4px;
+}
+
+.schedule-date-controls button,
+.schedule-date-controls input {
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--quiet-control-bg);
+  color: var(--selected-option-text);
+  box-shadow: none;
+}
+
+.schedule-date-controls button {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 9px;
+}
+
+.schedule-date-controls button:hover,
+.schedule-date-controls input:hover {
+  background: var(--quiet-control-hover-bg);
+}
+
+.schedule-date-controls input {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0 9px;
 }
 
 .view-toggle {
@@ -2820,6 +2862,61 @@ body[data-theme="dark"] #homePanel .task-form .weekday-picker label:has(input:ch
   left: 6px;
 }
 
+.grid-trash-target {
+  position: fixed;
+  right: 50%;
+  bottom: max(98px, calc(env(safe-area-inset-bottom) + 98px));
+  z-index: 55;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: min(250px, calc(100vw - 36px));
+  min-height: 54px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--field), var(--surface) 45%);
+  box-shadow:
+    0 18px 48px rgba(23, 32, 38, 0.18),
+    inset 0 0 0 1px color-mix(in srgb, var(--line), transparent 12%);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(50%, 14px) scale(0.96);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.grid-trash-target.visible {
+  opacity: 1;
+  transform: translate(50%, 0) scale(1);
+}
+
+.grid-trash-target.ready {
+  background: color-mix(in srgb, var(--coral), var(--field) 78%);
+  box-shadow:
+    0 18px 52px color-mix(in srgb, var(--coral), transparent 62%),
+    inset 0 0 0 2px color-mix(in srgb, var(--coral), transparent 18%);
+  color: var(--coral);
+  transform: translate(50%, -3px) scale(1.03);
+}
+
+.grid-trash-target svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .week-task {
   grid-template-columns: 1fr;
   grid-template-rows: auto auto auto;
@@ -2913,6 +3010,23 @@ body[data-theme="dark"] #homePanel .task-form .weekday-picker label:has(input:ch
   display: none;
 }
 
+.schedule-grid-view.compact-15 .timeline-board:not(.week-board) > .duration-15,
+.schedule-grid-view.compact-30 .timeline-board:not(.week-board) > .duration-30 {
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 13px;
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+.schedule-grid-view.compact-15 .timeline-board:not(.week-board) > .duration-15 .timeline-time,
+.schedule-grid-view.compact-30 .timeline-board:not(.week-board) > .duration-30 .timeline-time {
+  grid-row: 1 / 3;
+  display: grid;
+  text-align: left;
+  visibility: visible;
+}
+
 .schedule-grid-view.compact-15 .duration-15 .timeline-title,
 .schedule-grid-view.compact-30 .duration-30 .timeline-title {
   align-self: center;
@@ -2921,6 +3035,7 @@ body[data-theme="dark"] #homePanel .task-form .weekday-picker label:has(input:ch
   max-width: 100%;
   box-sizing: border-box;
   color: var(--ink);
+  line-height: 1.12;
   text-align: left;
   text-shadow: none;
 }
@@ -2931,7 +3046,6 @@ body[data-theme="dark"] #homePanel .task-form .weekday-picker label:has(input:ch
   right: 4px;
   min-height: 18px;
   transform: none;
-  font-size: 0.58rem;
   padding: 0 4px;
 }
 
@@ -3684,6 +3798,7 @@ body[data-theme="dark"] #homePanel .task-form .weekday-picker label:has(input:ch
   .today-pill,
   .schedule-header select,
   .schedule-controls,
+  .schedule-date-controls,
   .points-total {
     max-width: none;
     width: 100%;
@@ -3692,6 +3807,10 @@ body[data-theme="dark"] #homePanel .task-form .weekday-picker label:has(input:ch
   .schedule-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .schedule-date-controls {
+    grid-template-columns: 38px minmax(0, 1fr) 38px auto;
   }
 
   .view-toggle {

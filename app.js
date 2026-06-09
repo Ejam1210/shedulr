@@ -28,6 +28,7 @@ const PROFILE_SCOPED_STORAGE_KEYS = [
 ];
 const SCHEDULE_DAYS_TO_SHOW = 30;
 const GRID_MINUTE_HEIGHT = 2.05;
+const GRID_COLLAPSED_GAP_MINUTES = 24;
 const GRID_MOVE_HOLD_MS = 600;
 const GRID_MOVE_CANCEL_DISTANCE = 12;
 const GRID_MOVE_SNAP_MINUTES = 15;
@@ -69,6 +70,10 @@ const topStreakValue = document.querySelector("#topStreakValue");
 const scheduleFilter = document.querySelector("#scheduleFilter");
 const scheduleGridRange = document.querySelector("#scheduleGridRange");
 const scheduleControls = document.querySelector(".schedule-controls");
+const scheduleDatePicker = document.querySelector("#scheduleDatePicker");
+const schedulePrevDateButton = document.querySelector("#schedulePrevDate");
+const scheduleNextDateButton = document.querySelector("#scheduleNextDate");
+const scheduleTodayButton = document.querySelector("#scheduleTodayButton");
 const scheduleViewButtons = document.querySelectorAll(".view-button");
 const gridZoomInButton = document.querySelector("#gridZoomIn");
 const gridZoomOutButton = document.querySelector("#gridZoomOut");
@@ -152,6 +157,7 @@ let taskTemplates = loadTaskTemplates();
 let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) ?? "light";
 let currentAccentTheme = localStorage.getItem(ACCENT_STORAGE_KEY) ?? "green";
 let scheduleView = "list";
+let scheduleAnchorDate = "";
 let scheduleGridZoom = 1;
 let pinchStartDistance = 0;
 let pinchStartZoom = 1;
@@ -166,6 +172,7 @@ let holdToEditTarget = null;
 let gridMoveHoldTimer = null;
 let gridMoveState = null;
 let lastTaskTap = null;
+let pendingGridEditTimer = null;
 let suppressTaskTapUntil = 0;
 let taskSwipeState = null;
 let taskReminderInterval = null;
@@ -276,7 +283,9 @@ const ACCENT_THEMES = {
 
 const today = new Date();
 const todayISO = toDateInputValue(today);
+scheduleAnchorDate = todayISO;
 taskDateInput.value = todayISO;
+scheduleDatePicker.value = scheduleAnchorDate;
 todayLabel.textContent = today.toLocaleDateString(undefined, {
   weekday: "long",
   month: "short",
@@ -340,6 +349,10 @@ scheduleViewButtons.forEach((button) => {
 
 scheduleFilter.addEventListener("change", render);
 scheduleGridRange.addEventListener("change", render);
+scheduleDatePicker.addEventListener("change", () => setScheduleAnchorDate(scheduleDatePicker.value));
+schedulePrevDateButton.addEventListener("click", () => shiftScheduleAnchorDate(-getScheduleNavigationStep()));
+scheduleNextDateButton.addEventListener("click", () => shiftScheduleAnchorDate(getScheduleNavigationStep()));
+scheduleTodayButton.addEventListener("click", () => setScheduleAnchorDate(todayISO));
 statsRange.addEventListener("change", render);
 scheduleGrid.addEventListener("wheel", handleScheduleGridZoom, { passive: false });
 scheduleGrid.addEventListener("touchstart", handleGridTouchStart, { passive: false });
@@ -649,6 +662,7 @@ function render() {
   scheduleViewButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.view === scheduleView);
   });
+  scheduleDatePicker.value = scheduleAnchorDate;
   scheduleControls.classList.toggle("grid-mode", scheduleView === "grid");
   updateScheduleGridZoomControls();
   ensureTimerInterval();
@@ -668,8 +682,9 @@ function render() {
 }
 
 function buildScheduleOccurrences() {
-  const scheduleStart = startOfToday(new Date());
-  const scheduleEnd = addDays(scheduleStart, SCHEDULE_DAYS_TO_SHOW);
+  const scheduleWindow = getScheduleOccurrenceWindow();
+  const scheduleStart = scheduleWindow.start;
+  const scheduleEnd = scheduleWindow.end;
 
   return tasks
     .flatMap((task) => {
@@ -691,6 +706,16 @@ function buildScheduleOccurrences() {
       return occurrences;
     })
     .sort((a, b) => `${a.occurrenceDate}T${a.time}`.localeCompare(`${b.occurrenceDate}T${b.time}`));
+}
+
+function getScheduleOccurrenceWindow() {
+  const todayStart = startOfToday(today);
+  const anchor = parseISODate(scheduleAnchorDate);
+  const range = scheduleView === "grid" ? getGridDateRange() : { start: anchor, end: anchor };
+  const earliest = minDate(todayStart, range.start, addDays(anchor, -7));
+  const latest = maxDate(addDays(todayStart, SCHEDULE_DAYS_TO_SHOW), range.end, addDays(anchor, SCHEDULE_DAYS_TO_SHOW));
+
+  return { start: earliest, end: latest };
 }
 
 function buildMissedOccurrences() {
@@ -787,20 +812,22 @@ function getTopStreakDays(completedHistory) {
 function renderTopStreakStatus(completedHistory, streakDays) {
   if (!topStreakPill || !topStreakValue) return;
 
+  topStreakPill.classList.toggle("hidden", !featureSettings.streaks);
+  if (!featureSettings.streaks) {
+    topStreakValue.textContent = "0";
+    topStreakPill.title = "Task streaks are turned off.";
+    topStreakPill.setAttribute("aria-label", "Task streaks are turned off");
+    return;
+  }
+
   const todayMinutes = getCompletedMinutesForDate(completedHistory, todayISO);
   const minutesNeeded = Math.max(STREAK_MINUTES_TO_KEEP - todayMinutes, 0);
   const streakState = getStreakState(minutesNeeded);
   const minuteLabel = minutesNeeded === 1 ? "minute" : "minutes";
 
-  topStreakValue.textContent = String(featureSettings.streaks ? streakDays : 0);
+  topStreakValue.textContent = String(streakDays);
   topStreakPill.classList.remove("streak-safe", "streak-watch", "streak-low", "streak-critical");
   topStreakPill.classList.add(streakState);
-
-  if (!featureSettings.streaks) {
-    topStreakPill.title = "Task streaks are turned off.";
-    topStreakPill.setAttribute("aria-label", "Task streaks are turned off");
-    return;
-  }
 
   if (minutesNeeded === 0) {
     topStreakPill.title = `Streak secured today with ${formatMinutesAsHours(todayMinutes)} completed.`;
@@ -1081,25 +1108,76 @@ function handleTaskDoubleTap(event) {
   const taskCard = event.target.closest("[data-task-id][data-occurrence-date]");
   if (!taskCard) return;
 
+  const isGridTask = scheduleView === "grid" && scheduleGrid.contains(taskCard);
   const tap = {
     key: `${taskCard.dataset.taskId}:${taskCard.dataset.occurrenceDate}`,
     time: Date.now(),
     x: event.clientX,
     y: event.clientY,
   };
-  const isDoubleTap = lastTaskTap
+  const isRepeatedTap = lastTaskTap
     && lastTaskTap.key === tap.key
     && tap.time - lastTaskTap.time <= TASK_DOUBLE_TAP_MS
     && Math.hypot(tap.x - lastTaskTap.x, tap.y - lastTaskTap.y) <= TASK_DOUBLE_TAP_DISTANCE;
 
-  if (!isDoubleTap) {
-    lastTaskTap = tap;
+  if (!isRepeatedTap) {
+    cancelPendingGridEdit();
+    lastTaskTap = { ...tap, count: 1 };
     return;
   }
 
   event.preventDefault();
+
+  const tapCount = (lastTaskTap.count ?? 1) + 1;
+  lastTaskTap = { ...tap, count: tapCount };
+
+  if (isGridTask && tapCount >= 3) {
+    cancelPendingGridEdit();
+    duplicateGridTask(taskCard.dataset.taskId, taskCard.dataset.occurrenceDate);
+    lastTaskTap = null;
+    return;
+  }
+
+  if (tapCount !== 2) return;
+
+  if (isGridTask) {
+    schedulePendingGridEdit(taskCard.dataset.taskId, taskCard.dataset.occurrenceDate, tap.key);
+    return;
+  }
+
   lastTaskTap = null;
   openEditTask(taskCard.dataset.taskId, taskCard.dataset.occurrenceDate);
+}
+
+function schedulePendingGridEdit(taskId, occurrenceDate, tapKey) {
+  cancelPendingGridEdit();
+  pendingGridEditTimer = setTimeout(() => {
+    pendingGridEditTimer = null;
+    if (lastTaskTap?.key !== tapKey || (lastTaskTap.count ?? 0) !== 2) return;
+
+    lastTaskTap = null;
+    openEditTask(taskId, occurrenceDate);
+  }, TASK_DOUBLE_TAP_MS + 40);
+}
+
+function cancelPendingGridEdit() {
+  if (!pendingGridEditTimer) return;
+
+  clearTimeout(pendingGridEditTimer);
+  pendingGridEditTimer = null;
+}
+
+function duplicateGridTask(taskId, occurrenceDate) {
+  if (scheduleView !== "grid") return;
+
+  const sourceTask = tasks.find((task) => task.id === taskId);
+  if (!sourceTask) return;
+
+  const sourceOccurrence = createOccurrence(sourceTask, occurrenceDate);
+  tasks.push(createSingleTaskFromOccurrence(sourceOccurrence, sourceOccurrence.occurrenceDate, sourceOccurrence.time));
+  saveTasks();
+  render();
+  showAppToast("Task duplicated", `${sourceOccurrence.title} was copied in the grid.`);
 }
 
 function startGridTaskMove(event) {
@@ -1124,6 +1202,7 @@ function startGridTaskMove(event) {
     active: false,
     drop: null,
     preview: null,
+    trashTarget: null,
   };
 
   gridMoveHoldTimer = setTimeout(activateGridTaskMove, GRID_MOVE_HOLD_MS);
@@ -1138,11 +1217,14 @@ function activateGridTaskMove() {
     return;
   }
 
+  cancelPendingGridEdit();
   const occurrence = createOccurrence(sourceTask, gridMoveState.occurrenceDate);
   gridMoveState.active = true;
   gridMoveState.duration = Number(occurrence.duration);
-  gridMoveState.sourceElement.classList.add("grid-task-moving");
+  refreshScheduleGridForMove();
+  gridMoveState.sourceElement?.classList.add("grid-task-moving");
   scheduleGrid.classList.add("grid-moving");
+  showGridTrashTarget();
 
   try {
     scheduleGrid.setPointerCapture(gridMoveState.pointerId);
@@ -1168,6 +1250,7 @@ function updateGridTaskMove(event) {
   }
 
   event.preventDefault();
+  autoScrollScheduleGridDuringMove(event.clientY);
   updateGridMovePreview(event.clientX, event.clientY);
 }
 
@@ -1180,18 +1263,28 @@ function finishGridTaskMove(event) {
   }
 
   event.preventDefault();
-  const drop = getGridMoveDropTarget(event.clientX, event.clientY, gridMoveState.duration);
-  const didMove = drop
+  const shouldDelete = isPointInsideGridTrash(event.clientX, event.clientY);
+  const deletedTask = shouldDelete ? getGridMoveTaskLabel() : "";
+  const drop = shouldDelete ? null : getGridMoveDropTarget(event.clientX, event.clientY, gridMoveState.duration);
+  const didDelete = shouldDelete;
+  const didMove = !shouldDelete && drop
     ? moveGridTask(gridMoveState.taskId, gridMoveState.occurrenceDate, drop.date, drop.time)
     : false;
 
-  suppressTaskTapUntil = Date.now() + TASK_DOUBLE_TAP_MS;
-  cancelGridTaskMove();
+  if (shouldDelete) {
+    deleteTask(gridMoveState.taskId, gridMoveState.occurrenceDate);
+  }
 
-  if (!didMove) return;
+  suppressTaskTapUntil = Date.now() + TASK_DOUBLE_TAP_MS;
+  cancelGridTaskMove({ refreshGrid: !didMove && !didDelete });
+
+  if (!didMove && !didDelete) return;
 
   saveTasks();
   render();
+  if (didDelete) {
+    showAppToast("Task deleted", `${deletedTask} was moved to the trash.`);
+  }
 }
 
 function cancelInactiveGridTaskMove(event) {
@@ -1200,7 +1293,9 @@ function cancelInactiveGridTaskMove(event) {
   }
 }
 
-function cancelGridTaskMove() {
+function cancelGridTaskMove({ refreshGrid = true } = {}) {
+  const shouldRefreshGrid = refreshGrid && scheduleView === "grid" && Boolean(gridMoveState?.active);
+
   if (gridMoveHoldTimer) {
     clearTimeout(gridMoveHoldTimer);
   }
@@ -1211,6 +1306,10 @@ function cancelGridTaskMove() {
 
   if (gridMoveState?.preview) {
     gridMoveState.preview.remove();
+  }
+
+  if (gridMoveState?.trashTarget) {
+    gridMoveState.trashTarget.remove();
   }
 
   if (gridMoveState?.pointerId !== undefined) {
@@ -1224,10 +1323,62 @@ function cancelGridTaskMove() {
   scheduleGrid.classList.remove("grid-moving");
   gridMoveHoldTimer = null;
   gridMoveState = null;
+
+  if (shouldRefreshGrid) {
+    render();
+  }
+}
+
+function refreshScheduleGridForMove() {
+  if (!gridMoveState?.active) return;
+
+  const previousTop = gridMoveState.sourceElement?.getBoundingClientRect().top ?? null;
+  const gridOccurrences = getGridOccurrences(buildScheduleOccurrences());
+  scheduleGrid.innerHTML = createScheduleGrid(gridOccurrences);
+  scheduleGrid.classList.add("active", "grid-moving");
+  updateScheduleGridZoomControls();
+
+  gridMoveState.sourceElement = [...scheduleGrid.querySelectorAll(".timeline-task[data-task-id][data-occurrence-date]")]
+    .find((taskCard) =>
+      taskCard.dataset.taskId === gridMoveState.taskId &&
+      taskCard.dataset.occurrenceDate === gridMoveState.occurrenceDate,
+    ) ?? null;
+
+  if (previousTop !== null && gridMoveState.sourceElement) {
+    const nextTop = gridMoveState.sourceElement.getBoundingClientRect().top;
+    scheduleGrid.scrollTop += nextTop - previousTop;
+  }
+}
+
+function autoScrollScheduleGridDuringMove(clientY) {
+  const rect = scheduleGrid.getBoundingClientRect();
+  const edgeSize = 72;
+  const maxStep = 24;
+
+  if (clientY < rect.top + edgeSize) {
+    const intensity = 1 - clamp((clientY - rect.top) / edgeSize, 0, 1);
+    scheduleGrid.scrollTop -= Math.ceil(maxStep * intensity);
+    return;
+  }
+
+  if (clientY > rect.bottom - edgeSize) {
+    const intensity = 1 - clamp((rect.bottom - clientY) / edgeSize, 0, 1);
+    scheduleGrid.scrollTop += Math.ceil(maxStep * intensity);
+  }
 }
 
 function updateGridMovePreview(clientX, clientY) {
   if (!gridMoveState?.active) return;
+
+  const overTrash = isPointInsideGridTrash(clientX, clientY);
+  updateGridTrashTargetState(overTrash);
+
+  if (overTrash) {
+    gridMoveState.drop = null;
+    if (gridMoveState.preview) gridMoveState.preview.remove();
+    gridMoveState.preview = null;
+    return;
+  }
 
   const drop = getGridMoveDropTarget(clientX, clientY, gridMoveState.duration);
   gridMoveState.drop = drop;
@@ -1258,6 +1409,53 @@ function getGridMovePreview() {
   return gridMoveState.preview;
 }
 
+function showGridTrashTarget() {
+  const trashTarget = getGridTrashTarget();
+  trashTarget.classList.add("visible");
+}
+
+function getGridTrashTarget() {
+  if (!gridMoveState.trashTarget) {
+    const trashTarget = document.createElement("div");
+    trashTarget.className = "grid-trash-target";
+    trashTarget.setAttribute("aria-hidden", "true");
+    trashTarget.innerHTML = `
+      <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+        <path d="M4 7h16"></path>
+        <path d="M9 7V5h6v2"></path>
+        <path d="M7 7l1 13h8l1-13"></path>
+        <path d="M10 11v5"></path>
+        <path d="M14 11v5"></path>
+      </svg>
+      <span>Drop to delete</span>
+    `;
+    document.body.append(trashTarget);
+    gridMoveState.trashTarget = trashTarget;
+  }
+
+  return gridMoveState.trashTarget;
+}
+
+function updateGridTrashTargetState(isReady) {
+  const trashTarget = getGridTrashTarget();
+  trashTarget.classList.toggle("ready", isReady);
+}
+
+function isPointInsideGridTrash(clientX, clientY) {
+  const trashTarget = gridMoveState?.trashTarget;
+  if (!trashTarget) return false;
+
+  const rect = trashTarget.getBoundingClientRect();
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+}
+
+function getGridMoveTaskLabel() {
+  const sourceTask = tasks.find((task) => task.id === gridMoveState?.taskId);
+  if (!sourceTask) return "Task";
+
+  return createOccurrence(sourceTask, gridMoveState.occurrenceDate).title;
+}
+
 function getGridMoveDropTarget(clientX, clientY, duration) {
   const board = scheduleGrid.querySelector(".timeline-board");
   const timeline = board?.closest(".day-timeline");
@@ -1271,13 +1469,16 @@ function getGridMoveDropTarget(clientX, clientY, duration) {
     end: Number(timeline.dataset.endMinute) || 24 * 60,
     totalMinutes: Number(timeline.dataset.totalMinutes) || 1,
   };
+  bounds.segments = parseTimelineSegments(timeline.dataset.timelineSegments, bounds.totalMinutes, bounds.start, bounds.end);
+  const visualMinute = clamp((clientY - boardRect.top) / boardRect.height, 0, 1) * bounds.totalMinutes;
+  const rawMinute = mapTimelineMinuteToActualMinute(visualMinute, bounds);
   const snappedMinute = snapGridMinute(
-    bounds.start + clamp((clientY - boardRect.top) / boardRect.height, 0, 1) * bounds.totalMinutes,
+    rawMinute,
     bounds,
     duration,
   );
-  const top = ((snappedMinute - bounds.start) / bounds.totalMinutes) * 100;
-  const height = Math.max((duration / bounds.totalMinutes) * 100, 1.8);
+  const top = getTimelineMinutePercent(snappedMinute, bounds);
+  const height = getTimelineRangeHeightPercent(snappedMinute, snappedMinute + Number(duration || 0), bounds);
 
   if (board.classList.contains("week-board")) {
     const columns = [...board.querySelectorAll(".week-day-column")];
@@ -1321,9 +1522,24 @@ function getElementCenterX(element) {
 }
 
 function snapGridMinute(minute, bounds, duration) {
-  const maxStart = Math.max(bounds.start, bounds.end - Number(duration || 0));
+  const segment = getClosestTimelineSegmentForMinute(bounds, minute);
+  const segmentLength = Math.max(segment.end - segment.start, GRID_MOVE_SNAP_MINUTES);
+  const safeDuration = Math.min(Number(duration || 0), segmentLength);
+  const maxStart = Math.max(segment.start, segment.end - safeDuration);
   const snapped = Math.round(minute / GRID_MOVE_SNAP_MINUTES) * GRID_MOVE_SNAP_MINUTES;
-  return clamp(snapped, bounds.start, maxStart);
+  return clamp(snapped, segment.start, maxStart);
+}
+
+function getClosestTimelineSegmentForMinute(bounds, minute) {
+  const segments = getTimelineSegments(bounds);
+  const directMatch = segments.find((segment) => minute >= segment.start && minute <= segment.end);
+  if (directMatch) return directMatch;
+
+  return segments.reduce((closestSegment, segment) => {
+    const closestDistance = Math.min(Math.abs(minute - closestSegment.start), Math.abs(minute - closestSegment.end));
+    const segmentDistance = Math.min(Math.abs(minute - segment.start), Math.abs(minute - segment.end));
+    return segmentDistance < closestDistance ? segment : closestSegment;
+  }, segments[0]);
 }
 
 function openEditTask(taskId, occurrenceDate) {
@@ -1580,20 +1796,21 @@ function createScheduleGrid(occurrences) {
 }
 
 function createDayScheduleGrid(occurrences) {
+  const selectedDate = scheduleAnchorDate;
   const tasksByDate = groupTasksByDate(occurrences);
-  const dayTasks = tasksByDate.get(todayISO) ?? [];
+  const dayTasks = tasksByDate.get(selectedDate) ?? [];
   const bounds = getDayTimelineBounds(dayTasks);
   const timelineItems = assignTimelineLanes(dayTasks);
 
   return `
     <section class="day-grid-card">
       <div class="day-grid-header">
-        <h3>${formatDateHeading(todayISO)}</h3>
+        <h3>${formatDateHeading(selectedDate)}</h3>
         <span>${dayTasks.length} task${dayTasks.length === 1 ? "" : "s"}</span>
       </div>
-      <div class="day-timeline" data-start-minute="${bounds.start}" data-end-minute="${bounds.end}" data-total-minutes="${bounds.totalMinutes}" style="--timeline-height: ${getTimelineHeight(bounds.totalMinutes)}px;">
+      <div class="day-timeline" data-start-minute="${bounds.start}" data-end-minute="${bounds.end}" data-total-minutes="${bounds.totalMinutes}" data-timeline-segments="${serializeTimelineSegments(bounds)}" style="--timeline-height: ${getTimelineHeight(bounds.totalMinutes)}px;">
         <div class="time-labels">${createTimelineLabels(bounds)}</div>
-        <div class="timeline-board" data-grid-date="${todayISO}">
+        <div class="timeline-board" data-grid-date="${selectedDate}">
           ${createTimelineLines(bounds)}
           ${timelineItems.map((item) => createTimelineTask(item, bounds)).join("")}
         </div>
@@ -1603,7 +1820,7 @@ function createDayScheduleGrid(occurrences) {
 }
 
 function createWeekScheduleGrid(occurrences) {
-  const weekDates = getCurrentWeekDates();
+  const weekDates = getScheduleWeekDates();
   const tasksByDate = groupTasksByDate(occurrences);
   const allWeekTasks = weekDates.flatMap((date) => tasksByDate.get(date) ?? []);
   const bounds = getDayTimelineBounds(allWeekTasks);
@@ -1626,14 +1843,14 @@ function createWeekScheduleGrid(occurrences) {
   return `
     <section class="day-grid-card week-grid-card">
       <div class="day-grid-header">
-        <h3>This week</h3>
+        <h3>${formatDateRangeHeading(weekDates[0], weekDates[6])}</h3>
         <span>${allWeekTasks.length} task${allWeekTasks.length === 1 ? "" : "s"}</span>
       </div>
       <div class="week-days-header">
         <span></span>
         ${dateLabels}
       </div>
-      <div class="day-timeline week-timeline" data-start-minute="${bounds.start}" data-end-minute="${bounds.end}" data-total-minutes="${bounds.totalMinutes}" style="--timeline-height: ${getTimelineHeight(bounds.totalMinutes)}px;">
+      <div class="day-timeline week-timeline" data-start-minute="${bounds.start}" data-end-minute="${bounds.end}" data-total-minutes="${bounds.totalMinutes}" data-timeline-segments="${serializeTimelineSegments(bounds)}" style="--timeline-height: ${getTimelineHeight(bounds.totalMinutes)}px;">
         <div class="time-labels">${createTimelineLabels(bounds)}</div>
         <div class="timeline-board week-board">
           ${createTimelineLines(bounds)}
@@ -1719,11 +1936,11 @@ function getGridOccurrences(occurrences) {
 
 function getGridDateRange() {
   if (scheduleGridRange.value === "day") {
-    const day = parseISODate(todayISO);
+    const day = parseISODate(scheduleAnchorDate);
     return { start: day, end: day };
   }
 
-  const weekStart = getCurrentWeekStart();
+  const weekStart = getWeekStart(parseISODate(scheduleAnchorDate));
   return { start: weekStart, end: addDays(weekStart, 6) };
 }
 
@@ -1807,8 +2024,8 @@ function assignTimelineLanes(dayTasks) {
 
 function createTimelineTask(item, bounds, extraClass = "") {
   const { task, range, lane, laneCount } = item;
-  const top = ((range.start - bounds.start) / bounds.totalMinutes) * 100;
-  const height = Math.max((Math.min(range.end, bounds.end) - range.start) / bounds.totalMinutes * 100, 1.8);
+  const top = getTimelineMinutePercent(range.start, bounds);
+  const height = getTimelineRangeHeightPercent(range.start, range.end, bounds);
   const laneWidth = 100 / laneCount;
   const laneLeft = lane * laneWidth;
   const typeStyle = getTaskTypeStyle(task.type);
@@ -1831,7 +2048,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
 function createTimelineLabels(bounds) {
   return getTimelineHours(bounds)
     .map((minute) => {
-      const top = ((minute - bounds.start) / bounds.totalMinutes) * 100;
+      const top = getTimelineMinutePercent(minute, bounds);
       return `<span style="top: ${top.toFixed(2)}%">${formatTimeFromMinutes(minute)}</span>`;
     })
     .join("");
@@ -1840,7 +2057,7 @@ function createTimelineLabels(bounds) {
 function createTimelineLines(bounds) {
   return getTimelineHours(bounds)
     .map((minute) => {
-      const top = ((minute - bounds.start) / bounds.totalMinutes) * 100;
+      const top = getTimelineMinutePercent(minute, bounds);
       return `<span class="timeline-line" style="top: ${top.toFixed(2)}%"></span>`;
     })
     .join("");
@@ -1848,35 +2065,165 @@ function createTimelineLines(bounds) {
 
 function getTimelineHours(bounds) {
   const hours = [];
-  for (let minute = bounds.start; minute <= bounds.end; minute += 60) {
-    hours.push(minute);
-  }
+  getTimelineSegments(bounds).forEach((segment) => {
+    for (let minute = segment.start; minute <= segment.end; minute += 60) {
+      if (!hours.includes(minute)) hours.push(minute);
+    }
+  });
   return hours;
 }
 
 function getDayTimelineBounds(dayTasks) {
-  if (dayTasks.length === 0) {
-    return {
-      start: 8 * 60,
-      end: 12 * 60,
-      totalMinutes: 4 * 60,
-    };
+  if (shouldExpandGridTimelineForMove()) {
+    return createTimelineBounds([{ start: 0, end: 24 * 60 }]);
   }
 
-  const ranges = dayTasks.map(getTaskTimeRange);
-  const earliest = Math.min(...ranges.map((range) => range.start));
-  const latest = Math.max(...ranges.map((range) => range.end));
-  const paddedStart = Math.max(0, earliest - 30);
-  const paddedEnd = Math.min(24 * 60, latest + 30);
-  const start = Math.max(0, Math.floor(paddedStart / 60) * 60);
-  const end = Math.min(24 * 60, Math.ceil(paddedEnd / 60) * 60);
-  const finalEnd = Math.max(end, start + 60);
+  if (dayTasks.length === 0) {
+    return createTimelineBounds([{ start: 8 * 60, end: 12 * 60 }]);
+  }
+
+  return createTimelineBounds(createOccupiedTimelineSegments(dayTasks));
+}
+
+function shouldExpandGridTimelineForMove() {
+  return scheduleView === "grid" && Boolean(gridMoveState?.active);
+}
+
+function createOccupiedTimelineSegments(dayTasks) {
+  return dayTasks
+    .map(getTaskTimeRange)
+    .map((range) => ({
+      start: Math.max(0, Math.floor(range.start / 60) * 60),
+      end: Math.min(24 * 60, Math.ceil(range.end / 60) * 60),
+    }))
+    .filter((segment) => segment.end > segment.start)
+    .sort((first, second) => first.start - second.start || first.end - second.end)
+    .reduce((segments, segment) => {
+      const previous = segments.at(-1);
+      if (previous && segment.start <= previous.end) {
+        previous.end = Math.max(previous.end, segment.end);
+      } else {
+        segments.push({ ...segment });
+      }
+
+      return segments;
+    }, []);
+}
+
+function createTimelineBounds(rawSegments) {
+  const fallbackSegments = rawSegments.length > 0 ? rawSegments : [{ start: 8 * 60, end: 12 * 60 }];
+  let visualCursor = 0;
+  const segments = fallbackSegments.map((segment, index) => {
+    if (index > 0) visualCursor += GRID_COLLAPSED_GAP_MINUTES;
+
+    const length = Math.max(segment.end - segment.start, GRID_MOVE_SNAP_MINUTES);
+    const timelineSegment = {
+      start: segment.start,
+      end: segment.end,
+      visualStart: visualCursor,
+      visualEnd: visualCursor + length,
+    };
+    visualCursor += length;
+    return timelineSegment;
+  });
 
   return {
-    start,
-    end: finalEnd,
-    totalMinutes: finalEnd - start,
+    start: segments[0].start,
+    end: segments.at(-1).end,
+    totalMinutes: Math.max(visualCursor, 60),
+    segments,
   };
+}
+
+function getTimelineSegments(bounds) {
+  if (Array.isArray(bounds.segments) && bounds.segments.length > 0) {
+    return bounds.segments;
+  }
+
+  return [{ start: bounds.start, end: bounds.end, visualStart: 0, visualEnd: bounds.totalMinutes }];
+}
+
+function serializeTimelineSegments(bounds) {
+  return getTimelineSegments(bounds)
+    .map((segment) => `${segment.start}:${segment.end}:${segment.visualStart}:${segment.visualEnd}`)
+    .join(",");
+}
+
+function parseTimelineSegments(value, totalMinutes, start, end) {
+  const segments = String(value ?? "")
+    .split(",")
+    .map((segment) => segment.split(":").map(Number))
+    .filter((parts) => parts.length === 4 && parts.every((part) => Number.isFinite(part)))
+    .map(([segmentStart, segmentEnd, visualStart, visualEnd]) => ({
+      start: segmentStart,
+      end: segmentEnd,
+      visualStart,
+      visualEnd,
+    }));
+
+  return segments.length > 0
+    ? segments
+    : [{ start, end, visualStart: 0, visualEnd: totalMinutes }];
+}
+
+function getTimelineMinutePercent(minute, bounds) {
+  return (mapActualMinuteToTimelineMinute(minute, bounds) / bounds.totalMinutes) * 100;
+}
+
+function getTimelineRangeHeightPercent(start, end, bounds) {
+  const visualStart = mapActualMinuteToTimelineMinute(start, bounds);
+  const visualEnd = mapActualMinuteToTimelineMinute(Math.min(end, bounds.end), bounds);
+  return Math.max(((visualEnd - visualStart) / bounds.totalMinutes) * 100, 1.8);
+}
+
+function mapActualMinuteToTimelineMinute(minute, bounds) {
+  const segments = getTimelineSegments(bounds);
+  const safeMinute = clamp(minute, segments[0].start, segments.at(-1).end);
+  const segment = segments.find((timelineSegment) => safeMinute >= timelineSegment.start && safeMinute <= timelineSegment.end);
+
+  if (segment) {
+    return segment.visualStart + clamp(safeMinute, segment.start, segment.end) - segment.start;
+  }
+
+  let closestVisualMinute = segments[0].visualStart;
+  let closestDistance = Infinity;
+  segments.forEach((timelineSegment) => {
+    const distanceToStart = Math.abs(safeMinute - timelineSegment.start);
+    const distanceToEnd = Math.abs(safeMinute - timelineSegment.end);
+
+    if (distanceToStart < closestDistance) {
+      closestDistance = distanceToStart;
+      closestVisualMinute = timelineSegment.visualStart;
+    }
+
+    if (distanceToEnd < closestDistance) {
+      closestDistance = distanceToEnd;
+      closestVisualMinute = timelineSegment.visualEnd;
+    }
+  });
+
+  return closestVisualMinute;
+}
+
+function mapTimelineMinuteToActualMinute(visualMinute, bounds) {
+  const segments = getTimelineSegments(bounds);
+  const safeMinute = clamp(visualMinute, 0, bounds.totalMinutes);
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (safeMinute >= segment.visualStart && safeMinute <= segment.visualEnd) {
+      return segment.start + safeMinute - segment.visualStart;
+    }
+
+    const nextSegment = segments[index + 1];
+    if (nextSegment && safeMinute > segment.visualEnd && safeMinute < nextSegment.visualStart) {
+      const distanceToPrevious = safeMinute - segment.visualEnd;
+      const distanceToNext = nextSegment.visualStart - safeMinute;
+      return distanceToPrevious <= distanceToNext ? segment.end : nextSegment.start;
+    }
+  }
+
+  return segments.at(-1).end;
 }
 
 function getTaskTimeRange(task) {
@@ -1920,11 +2267,31 @@ function formatDateHeading(isoDate) {
   });
 }
 
+function formatDateRangeHeading(startISO, endISO) {
+  const start = parseISODate(startISO);
+  const end = parseISODate(endISO);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const startLabel = start.toLocaleDateString(undefined, sameMonth
+    ? { month: "short", day: "numeric" }
+    : { month: "short", day: "numeric" });
+  const endLabel = end.toLocaleDateString(undefined, {
+    month: sameMonth ? undefined : "short",
+    day: "numeric",
+  });
+
+  return `${startLabel} - ${endLabel}`;
+}
+
 function formatWeekDayHeading(isoDate) {
   return parseISODate(isoDate).toLocaleDateString(undefined, {
     weekday: "short",
     day: "numeric",
   });
+}
+
+function getScheduleWeekDates() {
+  const weekStart = getWeekStart(parseISODate(scheduleAnchorDate));
+  return Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(weekStart, index)));
 }
 
 function getCurrentWeekDates() {
@@ -1933,9 +2300,13 @@ function getCurrentWeekDates() {
 }
 
 function getCurrentWeekStart() {
-  const day = today.getDay();
+  return getWeekStart(today);
+}
+
+function getWeekStart(date) {
+  const day = date.getDay();
   const daysSinceMonday = (day + 6) % 7;
-  return addDays(startOfToday(today), -daysSinceMonday);
+  return addDays(startOfToday(date), -daysSinceMonday);
 }
 
 function createTypeStyleAttribute(type) {
@@ -2150,6 +2521,27 @@ function getTimelineHeight(totalMinutes) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function setScheduleAnchorDate(value) {
+  if (!value) return;
+
+  const nextDate = parseISODate(value);
+  if (Number.isNaN(nextDate.getTime())) {
+    scheduleDatePicker.value = scheduleAnchorDate;
+    return;
+  }
+
+  scheduleAnchorDate = toDateInputValue(nextDate);
+  render();
+}
+
+function shiftScheduleAnchorDate(amount) {
+  setScheduleAnchorDate(toDateInputValue(addDays(parseISODate(scheduleAnchorDate), amount)));
+}
+
+function getScheduleNavigationStep() {
+  return scheduleView === "grid" && scheduleGridRange.value === "week" ? 7 : 1;
 }
 
 function createStatsPanel(completedHistory) {
@@ -2791,10 +3183,10 @@ function matchesCurrentFilter(task) {
 
   const filter = scheduleFilter.value;
   const taskDateTime = new Date(`${task.occurrenceDate}T${task.time}`);
-  const now = new Date();
+  const selectedDateStart = parseISODate(scheduleAnchorDate);
 
-  if (filter === "today") return task.occurrenceDate === todayISO && !task.done;
-  if (filter === "upcoming") return !task.done && taskDateTime >= startOfToday(now);
+  if (filter === "today") return task.occurrenceDate === scheduleAnchorDate && !task.done;
+  if (filter === "upcoming") return !task.done && taskDateTime >= selectedDateStart;
   if (filter === "done") return task.done;
   return true;
 }
@@ -3437,6 +3829,7 @@ function applyFeatureSettingsToControls() {
 
 function applyFeatureVisibility() {
   priorityField.classList.toggle("hidden", !featureSettings.priorities);
+  topStreakPill?.classList.toggle("hidden", !featureSettings.streaks);
   ensureTaskReminderInterval();
 }
 
@@ -4318,6 +4711,14 @@ function addDays(date, amount) {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + amount);
   return nextDate;
+}
+
+function minDate(...dates) {
+  return new Date(Math.min(...dates.map((date) => date.getTime())));
+}
+
+function maxDate(...dates) {
+  return new Date(Math.max(...dates.map((date) => date.getTime())));
 }
 
 function startOfToday(date) {
