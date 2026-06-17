@@ -86,8 +86,16 @@ create table if not exists public.scheduler_user_profiles (
   email text not null unique,
   display_name text not null,
   handle text not null unique,
+  public_stats jsonb not null default '{}'::jsonb,
+  grid_visibility text not null default 'private',
   updated_at timestamptz not null default now()
 );
+
+alter table public.scheduler_user_profiles
+add column if not exists public_stats jsonb not null default '{}'::jsonb;
+
+alter table public.scheduler_user_profiles
+add column if not exists grid_visibility text not null default 'private';
 
 create index if not exists scheduler_user_profiles_handle_idx
 on public.scheduler_user_profiles (handle);

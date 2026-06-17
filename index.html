@@ -142,6 +142,29 @@
               <small id="shedulrNameStatus">People can invite you with this name or your email.</small>
             </form>
 
+            <section class="friends-card hidden" id="friendsSection" aria-labelledby="friendsTitle">
+              <div class="friends-card-header">
+                <div>
+                  <h3 id="friendsTitle">Friends</h3>
+                  <p>Add people once, then quickly invite them to tasks.</p>
+                </div>
+                <button class="secondary-button" id="refreshFriendsButton" type="button">Refresh</button>
+              </div>
+              <form class="friend-add-form" id="friendAddForm">
+                <label>
+                  Add friend
+                  <input id="friendLookupInput" name="friendLookup" type="text" inputmode="email" autocomplete="off" placeholder="Shedulr name, @name, or email" />
+                </label>
+                <button class="primary-button" type="submit">Add</button>
+              </form>
+              <label class="share-toggle">
+                <input id="publicGridToggle" type="checkbox" />
+                <span>Make my schedule grid public to friends</span>
+              </label>
+              <small id="friendsStatus">Friends can see your shared stats and activity after you log in.</small>
+              <div class="friends-list" id="friendsList"></div>
+            </section>
+
             <section class="invite-inbox hidden" id="inviteInbox" aria-label="Task invites">
               <div class="invite-inbox-header">
                 <div>
@@ -154,6 +177,7 @@
             </section>
           </section>
         </div>
+        <section class="friend-detail-panel hidden" id="friendDetailPanel" aria-live="polite"></section>
       </aside>
       <aside class="side-menu" id="sideMenu" aria-label="Settings">
         <div class="menu-header">
@@ -287,6 +311,18 @@
         </section>
       </div>
       <div class="app-toast" id="appToast" role="status" aria-live="polite"></div>
+      <div class="delete-repeat-overlay hidden" id="deleteRepeatOverlay" aria-hidden="true">
+        <section class="delete-repeat-modal" role="dialog" aria-modal="true" aria-labelledby="deleteRepeatTitle">
+          <p class="eyebrow">Repeated task</p>
+          <h2 id="deleteRepeatTitle">Delete this repeat?</h2>
+          <p id="deleteRepeatMessage">Choose whether to remove only this occurrence or the whole repeating task.</p>
+          <div class="delete-repeat-actions">
+            <button class="secondary-button" id="deleteRepeatOnceButton" type="button">This repeat only</button>
+            <button class="danger-button" id="deleteRepeatAllButton" type="button">All repeats</button>
+            <button class="secondary-button ghost-button" id="cancelRepeatDeleteButton" type="button">Cancel</button>
+          </div>
+        </section>
+      </div>
       <div class="edit-overlay hidden" id="editTaskOverlay" aria-hidden="true">
         <section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editTaskTitle">
           <form id="editTaskForm">
@@ -317,24 +353,20 @@
               </label>
               <label id="editTaskTimeLabel">
                 <span>Estimated start</span>
-                <input id="editTaskTime" name="time" type="time" required />
+                <input id="editTaskTime" name="time" type="time" step="60" required />
               </label>
             </div>
 
-            <div class="field-row field-row-three">
+            <div class="field-row field-row-four">
               <label id="editTaskDurationField">
                 Duration
-                <select id="editTaskDuration" name="duration">
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                  <option value="45">45 min</option>
-                  <option value="60">1 hour</option>
-                  <option value="90">1.5 hours</option>
-                  <option value="120">2 hours</option>
-                  <option value="150">2.5 hours</option>
-                  <option value="180">3 hours</option>
-                  <option value="240">4 hours</option>
-                  <option value="300">5 hours</option>
+                <input id="editTaskDuration" name="duration" type="time" min="00:01" max="05:00" step="60" required />
+              </label>
+              <label id="editTaskTimerModeField">
+                Timer
+                <select id="editTaskTimerMode" name="timerMode">
+                  <option value="countdown">Countdown</option>
+                  <option value="stopwatch">Stopwatch</option>
                 </select>
               </label>
               <label>
@@ -360,6 +392,7 @@
               Invite people
               <input id="editTaskInviteEmails" name="inviteEmails" type="text" inputmode="email" autocomplete="off" placeholder="email or Shedulr name, comma separated" />
             </label>
+            <div class="friend-invite-list" id="editFriendInviteList" aria-label="Quick add friends"></div>
 
             <fieldset class="repeat-box">
               <legend>Repeat</legend>
@@ -439,24 +472,20 @@
                 </label>
                 <label id="taskTimeLabel">
                   <span>Estimated start</span>
-                  <input id="taskTime" name="time" type="time" required />
+                  <input id="taskTime" name="time" type="time" step="60" required />
                 </label>
               </div>
 
-              <div class="field-row field-row-three">
+              <div class="field-row field-row-four">
                 <label id="taskDurationField">
                   Duration
-                  <select id="taskDuration" name="duration">
-                    <option value="15">15 min</option>
-                    <option value="30" selected>30 min</option>
-                    <option value="45">45 min</option>
-                    <option value="60">1 hour</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
-                    <option value="150">2.5 hours</option>
-                    <option value="180">3 hours</option>
-                    <option value="240">4 hours</option>
-                    <option value="300">5 hours</option>
+                  <input id="taskDuration" name="duration" type="time" min="00:01" max="05:00" step="60" value="00:30" required />
+                </label>
+                <label id="taskTimerModeField">
+                  Timer
+                  <select id="taskTimerMode" name="timerMode">
+                    <option value="countdown">Countdown</option>
+                    <option value="stopwatch">Stopwatch</option>
                   </select>
                 </label>
                 <label>
@@ -490,6 +519,7 @@
                 Invite people
                 <input id="taskInviteEmails" name="inviteEmails" type="text" inputmode="email" autocomplete="off" placeholder="email or Shedulr name, comma separated" />
               </label>
+              <div class="friend-invite-list" id="taskFriendInviteList" aria-label="Quick add friends"></div>
 
               <fieldset class="repeat-box">
                 <legend>Repeat</legend>
@@ -624,7 +654,7 @@
             </select>
             <select id="scheduleFilter" class="view-only-list" aria-label="Filter schedule">
               <option value="all">All tasks</option>
-              <option value="today">Selected day</option>
+              <option value="today" selected>Selected day</option>
               <option value="upcoming">Upcoming</option>
               <option value="done">Completed</option>
             </select>
@@ -694,7 +724,7 @@
         <section class="weekly-goals-card" aria-labelledby="weeklyGoalsTitle">
           <div>
             <h3 id="weeklyGoalsTitle">Weekly Goals</h3>
-            <p>Set an xp improvement goal for your next Monday report.</p>
+            <p>Set an xp improvement goal for your next weekly report.</p>
           </div>
           <div class="goal-controls">
             <label>

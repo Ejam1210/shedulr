@@ -16,8 +16,11 @@ const TASK_FORM_COLLAPSED_STORAGE_KEY = "daily-task-scheduler.task-form-collapse
 const HOME_WIDGETS_STORAGE_KEY = "daily-task-scheduler.home-widgets";
 const HOME_WIDGET_LAYOUT_STORAGE_KEY = "daily-task-scheduler.home-widget-layout";
 const STARTUP_QUOTE_STORAGE_KEY = "daily-task-scheduler.startup-quote";
+const FRIENDS_STORAGE_KEY = "daily-task-scheduler.friends";
+const SHARE_SETTINGS_STORAGE_KEY = "daily-task-scheduler.share-settings";
 const SUPABASE_URL = "https://xaacjrtkzvphztifnywm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhYWNqcnRrenZwaHp0aWZueXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDA4NzcsImV4cCI6MjA5NTg3Njg3N30.mTBCPN4JiVDWQVVxBXyFE67vJ3i8A4JoW8mpUO1wDfo";
+const APP_AUTH_REDIRECT_URL = "https://ejam1210.github.io/Task-scheduling-app/";
 const CLOUD_DATA_TABLE = "scheduler_app_data";
 const TASK_INVITES_TABLE = "scheduler_task_invites";
 const USER_DIRECTORY_TABLE = "scheduler_user_profiles";
@@ -33,13 +36,19 @@ const PROFILE_SCOPED_STORAGE_KEYS = [
   STREAK_CELEBRATION_STORAGE_KEY,
   HOME_WIDGETS_STORAGE_KEY,
   HOME_WIDGET_LAYOUT_STORAGE_KEY,
+  FRIENDS_STORAGE_KEY,
+  SHARE_SETTINGS_STORAGE_KEY,
 ];
 const SCHEDULE_DAYS_TO_SHOW = 30;
 const GRID_MINUTE_HEIGHT = 2.05;
 const GRID_COLLAPSED_GAP_MINUTES = 24;
 const GRID_MOVE_HOLD_MS = 600;
 const GRID_MOVE_CANCEL_DISTANCE = 12;
-const GRID_MOVE_SNAP_MINUTES = 15;
+const GRID_MOVE_SNAP_MINUTES = 5;
+const DEFAULT_TASK_DURATION_MINUTES = 30;
+const MIN_TASK_DURATION_MINUTES = 1;
+const MAX_TASK_DURATION_MINUTES = 300;
+const STOPWATCH_VISUAL_DURATION_MINUTES = 30;
 const HOME_GRID_MINUTE_HEIGHT = 1.6;
 const TASK_DOUBLE_TAP_MS = 380;
 const TASK_DOUBLE_TAP_DISTANCE = 28;
@@ -147,6 +156,8 @@ const taskTimeInput = document.querySelector("#taskTime");
 const taskTimeLabel = document.querySelector("#taskTimeLabel span");
 const taskDurationInput = document.querySelector("#taskDuration");
 const taskDurationField = document.querySelector("#taskDurationField");
+const taskTimerModeInput = document.querySelector("#taskTimerMode");
+const taskTimerModeField = document.querySelector("#taskTimerModeField");
 const taskTypeInput = document.querySelector("#taskType");
 const customTaskTypeInput = document.querySelector("#customTaskType");
 const taskPriorityInput = document.querySelector("#taskPriority");
@@ -192,6 +203,16 @@ const logoutButton = document.querySelector("#logoutButton");
 const shedulrNameForm = document.querySelector("#shedulrNameForm");
 const shedulrNameInput = document.querySelector("#shedulrNameInput");
 const shedulrNameStatus = document.querySelector("#shedulrNameStatus");
+const friendsSection = document.querySelector("#friendsSection");
+const friendAddForm = document.querySelector("#friendAddForm");
+const friendLookupInput = document.querySelector("#friendLookupInput");
+const refreshFriendsButton = document.querySelector("#refreshFriendsButton");
+const publicGridToggle = document.querySelector("#publicGridToggle");
+const friendsStatus = document.querySelector("#friendsStatus");
+const friendsList = document.querySelector("#friendsList");
+const friendDetailPanel = document.querySelector("#friendDetailPanel");
+const taskFriendInviteList = document.querySelector("#taskFriendInviteList");
+const editFriendInviteList = document.querySelector("#editFriendInviteList");
 const inviteInbox = document.querySelector("#inviteInbox");
 const inviteList = document.querySelector("#inviteList");
 const refreshInvitesButton = document.querySelector("#refreshInvitesButton");
@@ -204,6 +225,11 @@ const focusOverlay = document.querySelector("#focusOverlay");
 const streakCelebrationOverlay = document.querySelector("#streakCelebrationOverlay");
 const weeklyReportOverlay = document.querySelector("#weeklyReportOverlay");
 const appToast = document.querySelector("#appToast");
+const deleteRepeatOverlay = document.querySelector("#deleteRepeatOverlay");
+const deleteRepeatMessage = document.querySelector("#deleteRepeatMessage");
+const deleteRepeatOnceButton = document.querySelector("#deleteRepeatOnceButton");
+const deleteRepeatAllButton = document.querySelector("#deleteRepeatAllButton");
+const cancelRepeatDeleteButton = document.querySelector("#cancelRepeatDeleteButton");
 const assistantButton = document.querySelector("#assistantButton");
 const assistantOverlay = document.querySelector("#assistantOverlay");
 const closeAssistantButton = document.querySelector("#closeAssistantButton");
@@ -232,6 +258,8 @@ const editTaskTimeInput = document.querySelector("#editTaskTime");
 const editTaskTimeLabel = document.querySelector("#editTaskTimeLabel span");
 const editTaskDurationInput = document.querySelector("#editTaskDuration");
 const editTaskDurationField = document.querySelector("#editTaskDurationField");
+const editTaskTimerModeInput = document.querySelector("#editTaskTimerMode");
+const editTaskTimerModeField = document.querySelector("#editTaskTimerModeField");
 const editTaskTypeInput = document.querySelector("#editTaskType");
 const editTaskPriorityInput = document.querySelector("#editTaskPriority");
 const editTaskNotesInput = document.querySelector("#editTaskNotes");
@@ -302,6 +330,10 @@ let taskInvites = [];
 let isLoadingTaskInvites = false;
 let cloudDirectoryProfile = null;
 let isSavingShedulrName = false;
+let pendingRepeatDelete = null;
+let friends = [];
+let shareSettings = { gridPublic: false };
+let isLoadingFriends = false;
 
 const TASK_TYPE_STYLES = {
   Focus: { color: "#2d6f9f", bg: "rgba(45, 111, 159, 0.14)" },
@@ -317,6 +349,10 @@ const DEFAULT_FEATURE_SETTINGS = {
   missedTasks: true,
   focusMode: false,
   taskReminders: false,
+};
+
+const DEFAULT_SHARE_SETTINGS = {
+  gridPublic: false,
 };
 
 featureSettings = loadFeatureSettings();
@@ -409,7 +445,11 @@ scheduleAnchorDate = todayISO;
 homeGridAnchorDate = todayISO;
 taskDateInput.value = todayISO;
 scheduleDatePicker.value = scheduleAnchorDate;
+scheduleFilter.value = "today";
+scheduleGridRange.value = "week";
 if (homeGridDatePicker) homeGridDatePicker.value = homeGridAnchorDate;
+friends = loadFriends();
+shareSettings = loadShareSettings();
 todayLabel.textContent = today.toLocaleDateString(undefined, {
   weekday: "long",
   month: "short",
@@ -505,6 +545,7 @@ homeDayGrid?.addEventListener("touchstart", handleHomeGridTouchStart, { passive:
 homeDayGrid?.addEventListener("touchmove", handleHomeGridTouchMove, { passive: false });
 homeDayGrid?.addEventListener("touchend", resetHomeGridPinch);
 taskItemKindInput.addEventListener("change", toggleItemKindFields);
+taskTimerModeInput.addEventListener("change", toggleItemKindFields);
 taskRepeatModeInput.addEventListener("change", () => {
   toggleRepeatControls();
   if (taskRepeatsInput.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
@@ -541,6 +582,7 @@ function openScheduleTaskFormFromHome() {
 }
 
 editItemKindInput.addEventListener("change", toggleEditItemKindFields);
+editTaskTimerModeInput.addEventListener("change", toggleEditItemKindFields);
 editTaskRepeatsInput.addEventListener("change", () => {
   toggleEditRepeatControls();
   if (editTaskRepeatsInput.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
@@ -588,6 +630,13 @@ logoutButton.addEventListener("click", signOut);
 shedulrNameForm?.addEventListener("submit", saveShedulrName);
 refreshInvitesButton?.addEventListener("click", loadTaskInvites);
 inviteList?.addEventListener("click", handleInviteAction);
+friendAddForm?.addEventListener("submit", addFriend);
+refreshFriendsButton?.addEventListener("click", refreshFriends);
+friendsList?.addEventListener("click", handleFriendListAction);
+friendDetailPanel?.addEventListener("click", handleFriendDetailAction);
+publicGridToggle?.addEventListener("change", updatePublicGridSetting);
+taskFriendInviteList?.addEventListener("click", (event) => handleFriendInviteClick(event, taskInviteEmailsInput));
+editFriendInviteList?.addEventListener("click", (event) => handleFriendInviteClick(event, editTaskInviteEmailsInput));
 menuButton.addEventListener("click", openMenu);
 closeMenuButton.addEventListener("click", closeMenu);
 drawerOverlay.addEventListener("click", closeAllMenus);
@@ -630,6 +679,7 @@ taskForm.addEventListener("submit", (event) => {
   const startDate = formData.get("date");
   const taskType = getSubmittedTaskType(formData);
   const itemKind = normalizeItemKind(formData.get("itemKind"));
+  const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(formData.get("timerMode"));
   const inviteRecipients = parseInviteRecipients(formData.get("inviteEmails"));
   const inviteEmails = parseInviteEmails(inviteRecipients);
   const repeatMode = repeats ? getRepeatModeForItemKind(itemKind, formData.get("repeatMode")) : "weekly";
@@ -643,7 +693,8 @@ taskForm.addEventListener("submit", (event) => {
     title: formData.get("title").trim(),
     date: startDate,
     time: formData.get("time"),
-    duration: itemKind === "reminder" ? 0 : Number(formData.get("duration")),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(formData.get("duration")),
+    timerMode,
     type: taskType,
     priority: normalizePriority(formData.get("priority")),
     notes: formData.get("notes").trim(),
@@ -712,10 +763,12 @@ function handleTaskAction(event) {
 
     const sourceTask = tasks.find((task) => task.id === taskId);
     if (!sourceTask || isReminderItem(sourceTask)) return;
+    const timerMode = getTaskTimerMode(sourceTask);
     activeTimer = {
       taskId,
       occurrenceDate,
-      duration: Number(sourceTask?.duration ?? 0),
+      duration: timerMode === "stopwatch" ? 0 : normalizeTaskDuration(sourceTask?.duration),
+      timerMode,
       startedAt: Date.now(),
     };
     saveActiveTimer();
@@ -725,8 +778,12 @@ function handleTaskAction(event) {
     if (!finishActiveTask(taskId, occurrenceDate)) return;
   }
 
+  if (button.dataset.action === "cancel-timer") {
+    cancelActiveTaskTimer(taskId, occurrenceDate);
+  }
+
   if (button.dataset.action === "delete") {
-    deleteTask(taskId, occurrenceDate);
+    if (!deleteTask(taskId, occurrenceDate)) return;
   }
 
   saveTasks();
@@ -799,6 +856,12 @@ cancelEditTaskButton.addEventListener("click", closeEditTask);
 editTaskOverlay.addEventListener("click", (event) => {
   if (event.target === editTaskOverlay) closeEditTask();
 });
+deleteRepeatOnceButton?.addEventListener("click", () => confirmRepeatDelete("single"));
+deleteRepeatAllButton?.addEventListener("click", () => confirmRepeatDelete("all"));
+cancelRepeatDeleteButton?.addEventListener("click", closeRepeatDeleteDialog);
+deleteRepeatOverlay?.addEventListener("click", (event) => {
+  if (event.target === deleteRepeatOverlay) closeRepeatDeleteDialog();
+});
 
 collapseMissedButton.addEventListener("click", () => {
   missedTasksCollapsed = !missedTasksCollapsed;
@@ -814,6 +877,10 @@ focusOverlay.addEventListener("click", (event) => {
   if (button.dataset.focusAction === "finish" && activeTimer) {
     finishActiveTask(activeTimer.taskId, activeTimer.occurrenceDate);
     saveTasks();
+  }
+
+  if (button.dataset.focusAction === "cancel" && activeTimer) {
+    cancelActiveTaskTimer(activeTimer.taskId, activeTimer.occurrenceDate);
   }
 
   if (button.dataset.focusAction === "off") {
@@ -2218,24 +2285,46 @@ function setTaskFormCollapsed(isCollapsed) {
 
 function toggleItemKindFields() {
   const isReminder = taskItemKindInput.value === "reminder";
+  const isStopwatch = !isReminder && normalizeTimerMode(taskTimerModeInput.value) === "stopwatch";
   if (!taskRepeatsInput.checked) {
     taskRepeatModeInput.value = isReminder ? "interval" : "weekly";
   }
-  taskDurationField.classList.toggle("hidden", isReminder);
-  taskDurationInput.toggleAttribute("required", !isReminder);
+  setDurationControlState(taskDurationInput, taskDurationField, { hidden: isReminder, disabled: isStopwatch });
+  taskTimerModeField.classList.toggle("hidden", isReminder);
+  taskDurationInput.toggleAttribute("required", !isReminder && !isStopwatch);
+  taskTimerModeInput.toggleAttribute("required", !isReminder);
   taskTimeLabel.textContent = isReminder ? "Set time" : "Estimated start";
   toggleRepeatControls();
 }
 
 function toggleEditItemKindFields() {
   const isReminder = editItemKindInput.value === "reminder";
+  const isStopwatch = !isReminder && normalizeTimerMode(editTaskTimerModeInput.value) === "stopwatch";
   if (!editTaskRepeatsInput.checked) {
     editRepeatModeInput.value = isReminder ? "interval" : "weekly";
   }
-  editTaskDurationField.classList.toggle("hidden", isReminder);
-  editTaskDurationInput.toggleAttribute("required", !isReminder);
+  setDurationControlState(editTaskDurationInput, editTaskDurationField, { hidden: isReminder, disabled: isStopwatch });
+  editTaskTimerModeField.classList.toggle("hidden", isReminder);
+  editTaskDurationInput.toggleAttribute("required", !isReminder && !isStopwatch);
+  editTaskTimerModeInput.toggleAttribute("required", !isReminder);
   editTaskTimeLabel.textContent = isReminder ? "Set time" : "Estimated start";
   toggleEditRepeatControls();
+}
+
+function setDurationControlState(input, field, { hidden, disabled }) {
+  field.classList.toggle("hidden", hidden);
+  field.classList.toggle("duration-disabled", disabled);
+  input.disabled = Boolean(disabled);
+
+  if (disabled) {
+    if (input.value) input.dataset.lastDurationValue = input.value;
+    input.value = "";
+    return;
+  }
+
+  if (!input.value) {
+    input.value = input.dataset.lastDurationValue || formatDurationInputValue(DEFAULT_TASK_DURATION_MINUTES);
+  }
 }
 
 function toggleRepeatControls() {
@@ -2369,9 +2458,84 @@ function getCompletedMinutesForDate(completedHistory, date) {
     .reduce((total, task) => total + calculateCompletedMinutes(task), 0);
 }
 
-function deleteTask(taskId, occurrenceDate) {
+function deleteTask(taskId, occurrenceDate, scope = "ask") {
+  const taskToDelete = tasks.find((task) => task.id === taskId);
+  if (!taskToDelete) return false;
+
+  if (taskToDelete.repeats && scope === "ask") {
+    openRepeatDeleteDialog(taskToDelete, occurrenceDate);
+    return false;
+  }
+
+  if (taskToDelete.repeats && scope === "single") {
+    tasks = tasks.map((task) => deleteRepeatingOccurrence(task, taskId, occurrenceDate));
+    clearActiveTimerFor(taskId, occurrenceDate);
+    return true;
+  }
+
   tasks = tasks.filter((task) => task.id !== taskId);
-  clearActiveTimerFor(taskId, occurrenceDate);
+  if (activeTimer?.taskId === taskId) {
+    clearActiveTimer();
+  } else {
+    clearActiveTimerFor(taskId, occurrenceDate);
+  }
+  return true;
+}
+
+function deleteRepeatingOccurrence(task, taskId, occurrenceDate) {
+  if (task.id !== taskId) return task;
+
+  const skippedTask = skipTaskOccurrence(task, taskId, occurrenceDate);
+  const earnedPointsByDate = { ...(skippedTask.earnedPointsByDate ?? {}) };
+  const actualMinutesByDate = { ...(skippedTask.actualMinutesByDate ?? {}) };
+  delete earnedPointsByDate[occurrenceDate];
+  delete actualMinutesByDate[occurrenceDate];
+
+  return {
+    ...skippedTask,
+    completedDates: (Array.isArray(skippedTask.completedDates) ? skippedTask.completedDates : [])
+      .filter((date) => date !== occurrenceDate),
+    earnedPointsByDate,
+    actualMinutesByDate,
+  };
+}
+
+function openRepeatDeleteDialog(task, occurrenceDate) {
+  pendingRepeatDelete = { taskId: task.id, occurrenceDate };
+  if (deleteRepeatMessage) {
+    deleteRepeatMessage.textContent = `Delete "${task.title}" only on ${formatDateHeading(occurrenceDate)}, or remove the whole repeating task?`;
+  }
+  deleteRepeatOverlay?.classList.remove("hidden");
+  deleteRepeatOverlay?.setAttribute("aria-hidden", "false");
+  deleteRepeatOnceButton?.focus();
+}
+
+function closeRepeatDeleteDialog() {
+  pendingRepeatDelete = null;
+  deleteRepeatOverlay?.classList.add("hidden");
+  deleteRepeatOverlay?.setAttribute("aria-hidden", "true");
+}
+
+function confirmRepeatDelete(scope) {
+  if (!pendingRepeatDelete) return;
+
+  const { taskId, occurrenceDate } = pendingRepeatDelete;
+  pendingRepeatDelete = null;
+  deleteRepeatOverlay?.classList.add("hidden");
+  deleteRepeatOverlay?.setAttribute("aria-hidden", "true");
+
+  const didDelete = deleteTask(taskId, occurrenceDate, scope);
+  if (!didDelete) return;
+
+  saveTasks();
+  render();
+}
+
+function cancelActiveTaskTimer(taskId, occurrenceDate) {
+  if (!isActiveTimerFor({ id: taskId, occurrenceDate })) return false;
+
+  clearActiveTimer();
+  return true;
 }
 
 function finishActiveTask(taskId, occurrenceDate) {
@@ -2522,7 +2686,7 @@ function finishTaskSwipe(event) {
 
   if (!shouldDelete) return;
 
-  deleteTask(state.taskId, state.occurrenceDate);
+  if (!deleteTask(state.taskId, state.occurrenceDate)) return;
   saveTasks();
   render();
 }
@@ -2753,13 +2917,13 @@ function finishGridTaskMove(event) {
   const shouldDelete = isPointInsideGridTrash(event.clientX, event.clientY);
   const deletedTask = shouldDelete ? getGridMoveTaskLabel() : "";
   const drop = shouldDelete ? null : getGridMoveDropTarget(event.clientX, event.clientY, gridMoveState.duration);
-  const didDelete = shouldDelete;
+  let didDelete = false;
   const didMove = !shouldDelete && drop
     ? moveGridTask(gridMoveState.taskId, gridMoveState.occurrenceDate, drop.date, drop.time)
     : false;
 
   if (shouldDelete) {
-    deleteTask(gridMoveState.taskId, gridMoveState.occurrenceDate);
+    didDelete = deleteTask(gridMoveState.taskId, gridMoveState.occurrenceDate);
   }
 
   suppressTaskTapUntil = Date.now() + TASK_DOUBLE_TAP_MS;
@@ -3042,7 +3206,8 @@ function openEditTask(taskId, occurrenceDate) {
   editTaskNameInput.value = occurrence.title;
   editTaskDateInput.value = occurrence.occurrenceDate;
   editTaskTimeInput.value = occurrence.time;
-  editTaskDurationInput.value = String(getTaskDurationForForm(occurrence));
+  editTaskDurationInput.value = isStopwatchTask(occurrence) ? "" : formatDurationInputValue(getTaskDurationForForm(occurrence));
+  editTaskTimerModeInput.value = getTaskTimerMode(occurrence);
   editTaskTypeInput.value = occurrence.type;
   editTaskPriorityInput.value = normalizePriority(occurrence.priority);
   editTaskNotesInput.value = occurrence.notes ?? "";
@@ -3074,7 +3239,8 @@ function saveEditedTask(event) {
   const time = editTaskTimeInput.value;
   const itemKind = normalizeItemKind(editItemKindInput.value);
   const type = normalizeTaskTypeName(editTaskTypeInput.value);
-  const duration = itemKind === "reminder" ? 0 : Number(editTaskDurationInput.value);
+  const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(editTaskTimerModeInput.value);
+  const duration = itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(editTaskDurationInput.value);
   const inviteRecipients = parseInviteRecipients(editTaskInviteEmailsInput.value);
   const inviteEmails = parseInviteEmails(inviteRecipients);
   const repeats = editTaskRepeatsInput.checked;
@@ -3097,6 +3263,7 @@ function saveEditedTask(event) {
       date,
       time,
       duration,
+      timerMode,
       type,
       priority: normalizePriority(editTaskPriorityInput.value),
       notes: editTaskNotesInput.value.trim(),
@@ -3123,6 +3290,7 @@ function saveEditedTask(event) {
       activeTimer = {
         ...activeTimer,
         duration,
+        timerMode,
       };
       saveActiveTimer();
     }
@@ -3209,10 +3377,11 @@ function createTaskCard(task) {
   const typeStyle = createTypeStyleAttribute(task.type);
   const isTimerActive = isActiveTimerFor(task);
   const canStartTimer = !isReminder && !task.done && (!activeTimer || isTimerActive);
+  const timingLabel = getTaskTimingLabel(task);
   const timerPanel = isTimerActive
     ? `
       <div class="task-timer" data-timer-task>
-        <span>Timer running</span>
+        <span>${isStopwatchTimer(activeTimer) ? "Stopwatch running" : "Timer running"}</span>
         <strong data-timer-countdown>${formatTimerRemaining(activeTimer)}</strong>
       </div>
     `
@@ -3222,8 +3391,11 @@ function createTaskCard(task) {
     : isReminder
       ? `<button class="icon-button start" type="button" data-action="complete-reminder" title="Mark reminder done" aria-label="Mark reminder done">Done</button>`
       : isTimerActive
-      ? `<button class="icon-button finish" type="button" data-action="finish" title="Finish now and earn xp for elapsed time" aria-label="Finish task" data-active-finish>Finish</button>`
-      : `<button class="icon-button start" type="button" data-action="start" title="Start task" aria-label="Start task" ${canStartTimer ? "" : "disabled"}>Start</button>`;
+      ? `
+        <button class="icon-button finish" type="button" data-action="finish" title="Finish now and earn xp for elapsed time" aria-label="Finish task" data-active-finish>Finish</button>
+        <button class="icon-button cancel-timer" type="button" data-action="cancel-timer" title="Cancel timer without deleting task" aria-label="Cancel timer">Cancel</button>
+      `
+      : `<button class="icon-button start" type="button" data-action="start" title="${isStopwatchTask(task) ? "Start stopwatch" : "Start task"}" aria-label="Start task" ${canStartTimer ? "" : "disabled"}>Start</button>`;
   const undoButton = task.done
     ? `
       <button class="icon-button" type="button" data-action="toggle" title="Undo" aria-label="Undo">
@@ -3243,7 +3415,7 @@ function createTaskCard(task) {
         ${notes}
         ${timerPanel}
         <div class="task-meta">
-          ${isReminder ? '<span class="chip">Reminder</span>' : `<span class="chip">${task.duration} min</span>`}
+          <span class="chip">${escapeHTML(timingLabel)}</span>
           <span class="chip type-chip">${escapeHTML(task.type)}</span>
           ${priorityChip}
           ${streakChip}
@@ -3444,7 +3616,7 @@ function createOverlapSignature(overlaps) {
 }
 
 function createOverlapTaskKey(task) {
-  return `${task.id}:${task.occurrenceDate}:${task.time}:${task.duration}`;
+  return `${task.id}:${task.occurrenceDate}:${task.time}:${getVisualTaskDuration(task)}`;
 }
 
 function getGridOccurrences(occurrences, options = {}) {
@@ -3549,6 +3721,7 @@ function assignTimelineLanes(dayTasks) {
 function createTimelineTask(item, bounds, extraClass = "") {
   const { task, range, lane, laneCount } = item;
   const isReminder = isReminderItem(task);
+  const durationClass = getTimelineDurationClass(task);
   const top = getTimelineMinutePercent(range.start, bounds);
   const height = getTimelineRangeHeightPercent(range.start, range.end, bounds);
   const laneWidth = 100 / laneCount;
@@ -3558,16 +3731,23 @@ function createTimelineTask(item, bounds, extraClass = "") {
 
   return `
     <article
-      class="timeline-task ${extraClass} ${isReminder ? "reminder-task duration-15" : `duration-${task.duration}`} ${task.done ? "done" : ""}"
+      class="timeline-task ${extraClass} ${isReminder ? "reminder-task" : ""} ${durationClass} ${task.done ? "done" : ""}"
       data-task-id="${task.id}"
       data-occurrence-date="${task.occurrenceDate}"
       style="--task-top: ${top.toFixed(2)}%; --task-height: ${height.toFixed(2)}%; --task-left: ${laneLeft.toFixed(2)}%; --task-width: ${laneWidth.toFixed(2)}%; --type-color: ${typeStyle.color}; --type-bg: ${typeStyle.bg};"
     >
       <span class="timeline-time">${formatTimeRange(task)}</span>
       <strong class="timeline-title">${escapeHTML(task.title)}</strong>
-      <small class="timeline-meta">${escapeHTML(task.type)}${priorityLabel}${isReminder ? " &middot; Reminder" : ` &middot; ${task.duration} min`}</small>
+      <small class="timeline-meta">${escapeHTML(task.type)}${priorityLabel} &middot; ${escapeHTML(getTaskTimingLabel(task))}</small>
     </article>
   `;
+}
+
+function getTimelineDurationClass(task) {
+  const duration = getVisualTaskDuration(task);
+  if (duration <= 15) return "duration-15";
+  if (duration <= 30) return "duration-30";
+  return `duration-${duration}`;
 }
 
 function createTimelineLabels(bounds) {
@@ -3907,7 +4087,8 @@ function applySelectedTaskTemplate() {
 
   taskItemKindInput.value = normalizeItemKind(template.itemKind);
   taskTitleInput.value = template.title;
-  taskDurationInput.value = String(getTaskDurationForForm(template));
+  taskDurationInput.value = isStopwatchTask(template) ? "" : formatDurationInputValue(getTaskDurationForForm(template));
+  taskTimerModeInput.value = getTaskTimerMode(template);
   taskNotesInput.value = template.notes ?? "";
   taskPriorityInput.value = normalizePriority(template.priority);
   taskRepeatsInput.checked = Boolean(template.repeats);
@@ -3931,6 +4112,7 @@ function saveCurrentTaskTemplate() {
     itemKind: formData.get("itemKind"),
     title: formData.get("title"),
     duration: formData.get("duration"),
+    timerMode: formData.get("timerMode"),
     type,
     notes: formData.get("notes"),
     priority: formData.get("priority"),
@@ -4202,8 +4384,6 @@ function renderWeeklyReportOverlay(completedHistory) {
 }
 
 function shouldShowWeeklyReportOverlay(reportKey) {
-  if (today.getDay() !== 1) return false;
-
   return localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY)) !== reportKey;
 }
 
@@ -4215,7 +4395,7 @@ function createWeeklyReportModal(completedHistory) {
     <section class="weekly-report-modal" role="dialog" aria-modal="true" aria-labelledby="weeklyReportModalTitle">
       <button class="close-button weekly-report-modal-close" data-weekly-report-action="close" type="button" aria-label="Close weekly report">x</button>
       <div class="weekly-report-modal-intro">
-        <span class="report-kicker">Monday report</span>
+        <span class="report-kicker">New week report</span>
         <h2 id="weeklyReportModalTitle">Your Weekly Report</h2>
         <p>${currentPeriod}. See how your xp, hours, and completed tasks changed compared with the week before.</p>
       </div>
@@ -4228,6 +4408,9 @@ function createWeeklyReportModal(completedHistory) {
 function dismissWeeklyReportOverlay() {
   localStorage.setItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY), getCurrentWeeklyReportKey());
   queueCloudSave();
+  if (weeklyReport) {
+    weeklyReport.innerHTML = createWeeklyReport(buildCompletedHistory());
+  }
   hideWeeklyReportOverlay();
 }
 
@@ -4248,7 +4431,9 @@ function getCurrentWeeklyReportKey() {
 function createWeeklyReport(completedHistory, options = {}) {
   const report = buildWeeklyReport(completedHistory);
   const bonusPoints = calculateWeeklyBonusPoints(report);
-  const reportBadge = today.getDay() === 1 ? "Monday report ready" : "Updates every Monday";
+  const reportKey = getCurrentWeeklyReportKey();
+  const reportSeen = localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY)) === reportKey;
+  const reportBadge = reportSeen ? "Latest weekly report" : "New week report ready";
   const currentPeriod = `${formatDateHeading(report.current.startISO)} - ${formatDateHeading(report.current.endISO)}`;
   const previousPeriod = `${formatDateHeading(report.previous.startISO)} - ${formatDateHeading(report.previous.endISO)}`;
 
@@ -4932,6 +5117,7 @@ function moveMissedTask(taskId, occurrenceDate, targetDate) {
 function createSingleTaskFromOccurrence(task, targetDate, targetTime = task.time, keepCompletion = false) {
   const isDone = keepCompletion && Boolean(task.done);
   const itemKind = getItemKind(task);
+  const timerMode = getTaskTimerMode(task);
 
   return {
     id: crypto.randomUUID(),
@@ -4939,7 +5125,8 @@ function createSingleTaskFromOccurrence(task, targetDate, targetTime = task.time
     title: task.title,
     date: targetDate,
     time: targetTime,
-    duration: itemKind === "reminder" ? 0 : Number(task.duration),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
+    timerMode,
     type: task.type,
     priority: normalizePriority(task.priority),
     notes: task.notes ?? "",
@@ -4989,8 +5176,12 @@ function isActiveTimerFor(task) {
   );
 }
 
+function isStopwatchTimer(timer) {
+  return normalizeTimerMode(timer?.timerMode) === "stopwatch";
+}
+
 function isTimerComplete(timer) {
-  return Boolean(timer) && getTimerRemainingMs(timer) === 0;
+  return Boolean(timer) && !isStopwatchTimer(timer) && getTimerRemainingMs(timer) === 0;
 }
 
 function syncActiveTimerWithTasks() {
@@ -5022,12 +5213,14 @@ function renderFocusOverlay(occurrences) {
     return;
   }
 
+  const timerLabel = isStopwatchTimer(activeTimer) ? "Stopwatch" : "Focus mode";
+
   focusOverlay.classList.add("visible");
   focusOverlay.innerHTML = `
     <section class="focus-card" ${createTypeStyleAttribute(activeTask.type)}>
-      <span class="report-kicker">Focus mode</span>
+      <span class="report-kicker">${timerLabel}</span>
       <h2>${escapeHTML(activeTask.title)}</h2>
-      <p>${escapeHTML(activeTask.type)} &middot; ${activeTask.duration} min &middot; ${formatTimeRange(activeTask)}</p>
+      <p>${escapeHTML(activeTask.type)} &middot; ${getTaskTimingLabel(activeTask)} &middot; ${formatTimeRange(activeTask)}</p>
       <strong class="focus-countdown" data-timer-countdown>${formatTimerRemaining(activeTimer)}</strong>
       <div class="focus-progress" aria-hidden="true">
         <span data-timer-progress style="width: ${calculateTimerProgress(activeTimer)}%"></span>
@@ -5036,6 +5229,7 @@ function renderFocusOverlay(occurrences) {
         <button class="primary-button" data-focus-action="finish" data-active-finish type="button">
           Finish
         </button>
+        <button class="secondary-button" data-focus-action="cancel" type="button">Cancel timer</button>
         <button class="secondary-button" data-focus-action="off" type="button">Turn off focus</button>
       </div>
     </section>
@@ -5070,6 +5264,7 @@ function loadActiveTimer() {
       taskId: savedTimer.taskId,
       occurrenceDate: savedTimer.occurrenceDate,
       duration: Number(savedTimer.duration),
+      timerMode: normalizeTimerMode(savedTimer.timerMode),
       startedAt: Number(savedTimer.startedAt),
     };
   } catch {
@@ -5099,7 +5294,7 @@ function updateTimerDisplay() {
 
   document.querySelectorAll("[data-active-finish]").forEach((button) => {
     button.disabled = false;
-    button.title = timerComplete ? "Finish task" : "Finish now and earn xp for elapsed time";
+    button.title = timerComplete || isStopwatchTimer(activeTimer) ? "Finish task" : "Finish now and earn xp for elapsed time";
   });
 
   document.querySelectorAll("[data-timer-progress]").forEach((element) => {
@@ -5108,6 +5303,7 @@ function updateTimerDisplay() {
 }
 
 function getTimerRemainingMs(timer) {
+  if (isStopwatchTimer(timer)) return 0;
   const totalMs = Number(timer.duration) * 60 * 1000;
   const elapsedMs = Date.now() - Number(timer.startedAt);
   return Math.max(totalMs - elapsedMs, 0);
@@ -5118,6 +5314,10 @@ function calculateTimerElapsedMinutes(timer) {
 
   const duration = Number(timer.duration) || 0;
   const elapsedMinutes = (Date.now() - Number(timer.startedAt)) / 60000;
+  if (isStopwatchTimer(timer)) {
+    return Math.max(elapsedMinutes, 0);
+  }
+
   return clamp(elapsedMinutes, 0, duration);
 }
 
@@ -5126,6 +5326,11 @@ function calculateTimerEarnedPoints(timer) {
 }
 
 function calculateTimerProgress(timer) {
+  if (isStopwatchTimer(timer)) {
+    const elapsedMinutes = calculateTimerElapsedMinutes(timer);
+    return ((elapsedMinutes % 60) / 60) * 100;
+  }
+
   const totalMs = Number(timer.duration) * 60 * 1000;
   if (!totalMs) return 0;
 
@@ -5133,6 +5338,10 @@ function calculateTimerProgress(timer) {
 }
 
 function formatTimerRemaining(timer) {
+  if (isStopwatchTimer(timer)) {
+    return formatTimerElapsed(timer);
+  }
+
   const remainingSeconds = Math.ceil(getTimerRemainingMs(timer) / 1000);
   if (remainingSeconds <= 0) return "Time's up";
 
@@ -5144,11 +5353,22 @@ function formatTimerRemaining(timer) {
   return hours > 0 ? `${hours}:${minuteSecondLabel}` : minuteSecondLabel;
 }
 
+function formatTimerElapsed(timer) {
+  const elapsedSeconds = Math.max(Math.floor((Date.now() - Number(timer.startedAt)) / 1000), 0);
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+  const minuteSecondLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  return hours > 0 ? `${hours}:${minuteSecondLabel}` : minuteSecondLabel;
+}
+
 function resetForm() {
   taskForm.reset();
   taskItemKindInput.value = "task";
   taskDateInput.value = todayISO;
-  taskDurationInput.value = "30";
+  taskDurationInput.value = formatDurationInputValue(DEFAULT_TASK_DURATION_MINUTES);
+  taskTimerModeInput.value = "countdown";
   taskTypeInput.value = BUILT_IN_TASK_TYPES[0];
   taskPriorityInput.value = "Medium";
   taskTemplateSelect.value = "";
@@ -5278,16 +5498,58 @@ function isReminderItem(task) {
   return getItemKind(task) === "reminder";
 }
 
+function normalizeTimerMode(value) {
+  return value === "stopwatch" ? "stopwatch" : "countdown";
+}
+
+function getTaskTimerMode(task) {
+  return isReminderItem(task) ? "countdown" : normalizeTimerMode(task?.timerMode);
+}
+
+function isStopwatchTask(task) {
+  return getTaskTimerMode(task) === "stopwatch";
+}
+
+function normalizeTaskDuration(value) {
+  return clamp(parseDurationMinutes(value) || DEFAULT_TASK_DURATION_MINUTES, MIN_TASK_DURATION_MINUTES, MAX_TASK_DURATION_MINUTES);
+}
+
+function parseDurationMinutes(value) {
+  if (typeof value === "string" && /^\d{1,2}:\d{2}$/.test(value.trim())) {
+    const [hours, minutes] = value.trim().split(":").map(Number);
+    return Math.round(hours * 60 + minutes);
+  }
+
+  return Number.isFinite(Number(value)) ? Math.round(Number(value)) : 0;
+}
+
+function formatDurationInputValue(minutes) {
+  const safeMinutes = normalizeTaskDuration(minutes);
+  const hours = Math.floor(safeMinutes / 60);
+  const remainingMinutes = safeMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(remainingMinutes).padStart(2, "0")}`;
+}
+
 function getTaskDurationForForm(task) {
-  return isReminderItem(task) ? 30 : clamp(Number(task.duration) || 30, 15, 300);
+  return isReminderItem(task) ? DEFAULT_TASK_DURATION_MINUTES : normalizeTaskDuration(task.duration);
 }
 
 function getVisualTaskDuration(task) {
-  return isReminderItem(task) ? GRID_MOVE_SNAP_MINUTES : Number(task.duration) || GRID_MOVE_SNAP_MINUTES;
+  if (isReminderItem(task)) return GRID_MOVE_SNAP_MINUTES;
+  if (isStopwatchTask(task) && !Number(task.duration)) return STOPWATCH_VISUAL_DURATION_MINUTES;
+  return normalizeTaskDuration(task.duration);
 }
 
 function getScheduleProgressWeight(task) {
-  return isReminderItem(task) ? GRID_MOVE_SNAP_MINUTES : Number(task.duration) || 0;
+  return isReminderItem(task) ? GRID_MOVE_SNAP_MINUTES : getVisualTaskDuration(task);
+}
+
+function getTaskTimingLabel(task) {
+  if (isReminderItem(task)) return "Reminder";
+  if (isStopwatchTask(task)) return "Stopwatch";
+
+  const durationLabel = `${getVisualTaskDuration(task)} min`;
+  return durationLabel;
 }
 
 function calculatePoints(task) {
@@ -5297,7 +5559,7 @@ function calculatePoints(task) {
     return Math.round(Number(task.earnedPoints));
   }
 
-  return Math.round((Number(task.duration) / 30) * 10);
+  return Math.round((calculateCompletedMinutes(task) / 30) * 10);
 }
 
 function calculateCompletedMinutes(task) {
@@ -5307,7 +5569,7 @@ function calculateCompletedMinutes(task) {
     return Math.round(Number(task.actualMinutes));
   }
 
-  return Number(task.duration) || 0;
+  return getVisualTaskDuration(task);
 }
 
 function normalizeEarnedPoints(value, task) {
@@ -5317,8 +5579,10 @@ function normalizeEarnedPoints(value, task) {
 
 function normalizeActualMinutes(value, task) {
   if (isReminderItem(task)) return 0;
-  const fallback = Number(task.duration) || 0;
-  return Number.isFinite(Number(value)) ? Math.round(clamp(Number(value), 0, fallback)) : fallback;
+  const fallback = getVisualTaskDuration(task);
+  if (!Number.isFinite(Number(value))) return fallback;
+  if (isStopwatchTask(task)) return Math.max(Math.round(Number(value)), 0);
+  return Math.round(clamp(Number(value), 0, fallback));
 }
 
 function formatPoints(points) {
@@ -5607,7 +5871,7 @@ function createAssistantAdvice(prompt) {
   const activeTasks = scopedTasks.filter((task) => !task.done);
   const completedTasks = scopedTasks.filter((task) => task.done);
   const overlaps = findOverlaps(activeTasks);
-  const totalMinutes = activeTasks.reduce((total, task) => total + Number(task.duration || 0), 0);
+  const totalMinutes = activeTasks.reduce((total, task) => total + getScheduleProgressWeight(task), 0);
   const completedMinutes = completedTasks.reduce((total, task) => total + calculateCompletedMinutes(task), 0);
   const points = completedTasks.reduce((total, task) => total + calculatePoints(task), 0);
 
@@ -5828,7 +6092,7 @@ function createBusyDayBullets(tasksToCheck) {
   if (tasksToCheck.length === 0) return ["No active tasks to review."];
 
   const longestTask = tasksToCheck.reduce((longest, task) =>
-    Number(task.duration) > Number(longest.duration) ? task : longest,
+    getVisualTaskDuration(task) > getVisualTaskDuration(longest) ? task : longest,
   tasksToCheck[0]);
 
   return [
@@ -6042,6 +6306,7 @@ function openProfileMenu() {
 
 function closeProfileMenu(shouldCloseOverlay = true) {
   profileMenu.classList.remove("open");
+  hideFriendDetail();
   profileButton.setAttribute("aria-expanded", "false");
   if (shouldCloseOverlay && !sideMenu.classList.contains("open")) {
     drawerOverlay.classList.remove("open");
@@ -6079,6 +6344,7 @@ async function initializeCloudAuth() {
   }
 
   setCloudStatus("Checking cloud login...");
+  const completedRedirect = await completeAuthRedirect();
   const { data, error } = await supabaseClient.auth.getSession();
   if (error) {
     setCloudStatus(error.message);
@@ -6091,6 +6357,9 @@ async function initializeCloudAuth() {
     await loadShedulrDirectoryProfile();
     await loadCloudData();
     await loadTaskInvites();
+    await refreshFriends({ silent: true });
+  } else if (completedRedirect) {
+    setCloudStatus("Email confirmed. You can log in with the password you used when signing up.");
   }
 
   supabaseClient.auth.onAuthStateChange(async (_event, session) => {
@@ -6103,6 +6372,7 @@ async function initializeCloudAuth() {
       await loadShedulrDirectoryProfile();
       await loadCloudData();
       await loadTaskInvites();
+      await refreshFriends({ silent: true });
     } else if (!cloudUser) {
       cloudDirectoryProfile = null;
       taskInvites = [];
@@ -6110,6 +6380,46 @@ async function initializeCloudAuth() {
       renderTaskInvites();
     }
   });
+}
+
+async function completeAuthRedirect() {
+  if (!supabaseClient) return false;
+
+  const queryParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const authError = queryParams.get("error_description") || hashParams.get("error_description");
+
+  if (authError) {
+    setCloudStatus(authError.replace(/\+/g, " "));
+    cleanAuthUrl();
+    return true;
+  }
+
+  const code = queryParams.get("code");
+  if (!code) return false;
+
+  setCloudStatus("Finishing email confirmation...");
+  const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+  cleanAuthUrl();
+
+  if (error) {
+    setCloudStatus(error.message);
+    console.error(error);
+    return true;
+  }
+
+  if (data.session?.user) {
+    cloudUser = data.session.user;
+    updateAuthUI();
+    setCloudStatus("Email confirmed. You are signed in.");
+  }
+
+  return true;
+}
+
+function cleanAuthUrl() {
+  if (!window.history?.replaceState || !["http:", "https:"].includes(window.location.protocol)) return;
+  window.history.replaceState({}, document.title, getAuthRedirectUrl());
 }
 
 async function signInWithEmail(event) {
@@ -6131,6 +6441,7 @@ async function signInWithEmail(event) {
   await loadShedulrDirectoryProfile();
   await loadCloudData();
   await loadTaskInvites();
+  await refreshFriends({ silent: true });
 }
 
 async function signUpWithEmail() {
@@ -6140,7 +6451,11 @@ async function signUpWithEmail() {
   if (!credentials) return;
 
   setCloudStatus("Creating account...");
-  const { data, error } = await supabaseClient.auth.signUp(credentials);
+  const emailRedirectTo = getAuthRedirectUrl();
+  const { data, error } = await supabaseClient.auth.signUp({
+    ...credentials,
+    ...(emailRedirectTo ? { options: { emailRedirectTo } } : {}),
+  });
   if (error) {
     setCloudStatus(error.message);
     return;
@@ -6152,6 +6467,7 @@ async function signUpWithEmail() {
     await loadShedulrDirectoryProfile();
     await saveCloudDataNow();
     await loadTaskInvites();
+    await refreshFriends({ silent: true });
     return;
   }
 
@@ -6167,6 +6483,7 @@ async function signOut() {
   lastCloudSaveSnapshot = "";
   cloudDirectoryProfile = null;
   taskInvites = [];
+  hideFriendDetail();
   updateAuthUI();
   renderShedulrNameControls();
   renderTaskInvites();
@@ -6190,13 +6507,21 @@ function getAuthCredentials() {
   return { email, password };
 }
 
+function getAuthRedirectUrl() {
+  if (!["http:", "https:"].includes(window.location.protocol)) return APP_AUTH_REDIRECT_URL;
+
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
 function updateAuthUI() {
   const signedIn = Boolean(cloudUser);
   authForm.classList.toggle("hidden", signedIn);
   authSession.classList.toggle("hidden", !signedIn);
   shedulrNameForm?.classList.toggle("hidden", !signedIn);
+  friendsSection?.classList.toggle("hidden", !signedIn);
   inviteInbox?.classList.toggle("hidden", !signedIn);
   authUserLabel.textContent = cloudUser?.email ?? "Signed in";
+  renderFriendControls();
 
   if (signedIn) {
     authPasswordInput.value = "";
@@ -6302,6 +6627,7 @@ async function saveCloudDataNow() {
   }
 
   lastCloudSaveSnapshot = serializedSnapshot;
+  await syncPublicProfileSnapshot({ silent: true });
   setCloudButtonsBusy(false);
   setCloudStatus("Uploaded just now. Log in with this same email on the other device, then tap Load cloud.");
 }
@@ -6311,6 +6637,7 @@ function setCloudButtonsBusy(isBusy) {
   syncNowButton.disabled = isBusy;
   if (shedulrNameForm) shedulrNameForm.querySelector("button")?.toggleAttribute("disabled", isBusy || isSavingShedulrName);
   if (refreshInvitesButton) refreshInvitesButton.disabled = isBusy || isLoadingTaskInvites;
+  if (refreshFriendsButton) refreshFriendsButton.disabled = isBusy || isLoadingFriends;
 }
 
 function getCloudErrorMessage(error, action) {
@@ -6339,7 +6666,7 @@ async function loadShedulrDirectoryProfile() {
 
   const { data, error } = await supabaseClient
     .from(USER_DIRECTORY_TABLE)
-    .select("display_name, handle, email")
+    .select("user_id, display_name, handle, email, public_stats, grid_visibility, updated_at")
     .eq("user_id", cloudUser.id)
     .maybeSingle();
 
@@ -6396,13 +6723,7 @@ async function upsertShedulrDirectoryProfile(name, options = {}) {
   const { error } = await supabaseClient
     .from(USER_DIRECTORY_TABLE)
     .upsert(
-      {
-        user_id: cloudUser.id,
-        email: normalizeEmail(cloudUser.email),
-        display_name: displayName,
-        handle,
-        updated_at: new Date().toISOString(),
-      },
+      createDirectoryProfilePayload(displayName),
       { onConflict: "user_id" },
     );
 
@@ -6448,6 +6769,477 @@ function renderShedulrNameControls() {
     : "People can invite you with this name or your email.");
 }
 
+async function addFriend(event) {
+  event.preventDefault();
+  const query = String(friendLookupInput?.value ?? "").trim();
+
+  if (!query) {
+    friendLookupInput?.focus();
+    return;
+  }
+
+  if (!supabaseClient || !cloudUser) {
+    setFriendsStatus("Log in first to add friends.");
+    return;
+  }
+
+  isLoadingFriends = true;
+  setCloudButtonsBusy(true);
+  setFriendsStatus("Finding friend...");
+
+  try {
+    const friendProfile = await lookupFriendDirectoryProfile(query);
+    if (friendProfile?.ambiguous) {
+      setFriendsStatus("More than one person matched. Use their exact @name or email.");
+      showAppToast("Use exact friend name", "Ask for their @Shedulr name or use their email.");
+      return;
+    }
+
+    if (!friendProfile?.email) {
+      setFriendsStatus("No Shedulr profile found. Try their exact @name or email.");
+      showAppToast("Friend not found", "Ask them to log in and save their Shedulr name first.");
+      return;
+    }
+
+    if (friendProfile.email === normalizeEmail(cloudUser.email)) {
+      setFriendsStatus("That is your own account.");
+      return;
+    }
+
+    const friendId = getFriendId(friendProfile);
+    if (friends.some((friend) => getFriendId(friend) === friendId)) {
+      setFriendsStatus(`${friendProfile.displayName} is already in your friends.`);
+      return;
+    }
+
+    friends = normalizeFriends([
+      {
+        ...friendProfile,
+        addedAt: new Date().toISOString(),
+      },
+      ...friends,
+    ]);
+    saveFriends();
+    friendLookupInput.value = "";
+    renderFriendControls();
+    showAppToast("Friend added", `${friendProfile.displayName} is ready for quick invites.`);
+    setFriendsStatus("Friend added. Tap their card to see shared stats.");
+  } catch (error) {
+    const message = getDirectoryErrorMessage(error, "find that friend");
+    setFriendsStatus(message);
+    showAppToast("Friend not added", message);
+    console.error(error);
+  } finally {
+    isLoadingFriends = false;
+    setCloudButtonsBusy(false);
+  }
+}
+
+async function refreshFriends(options = {}) {
+  if (!supabaseClient || !cloudUser) {
+    setFriendsStatus("Log in first to refresh friends.");
+    return;
+  }
+
+  if (friends.length === 0) {
+    renderFriendControls();
+    return;
+  }
+
+  isLoadingFriends = true;
+  setCloudButtonsBusy(true);
+  if (!options.silent) setFriendsStatus("Refreshing friends...");
+
+  const refreshedFriends = [];
+  try {
+    for (const friend of friends) {
+      const lookupValue = friend.handle ? `@${friend.handle}` : friend.email;
+      const freshProfile = await lookupFriendDirectoryProfile(lookupValue);
+      refreshedFriends.push(freshProfile ? { ...friend, ...freshProfile } : friend);
+    }
+
+    friends = normalizeFriends(refreshedFriends);
+    saveFriends();
+    renderFriendControls();
+    if (!options.silent) setFriendsStatus("Friends refreshed.");
+  } catch (error) {
+    const message = getDirectoryErrorMessage(error, "refresh friends");
+    if (!options.silent) setFriendsStatus(message);
+    console.error(error);
+  } finally {
+    isLoadingFriends = false;
+    setCloudButtonsBusy(false);
+  }
+}
+
+function handleFriendListAction(event) {
+  const button = event.target.closest("button[data-friend-action]");
+  if (!button) return;
+
+  const friendId = button.dataset.friendId;
+  const friend = friends.find((savedFriend) => getFriendId(savedFriend) === friendId);
+  if (!friend) return;
+
+  if (button.dataset.friendAction === "view") {
+    openFriendDetail(friend);
+  }
+
+  if (button.dataset.friendAction === "invite") {
+    appendFriendToInviteField(taskInviteEmailsInput, friend);
+    setFriendsStatus(`${friend.displayName} added to the next task invite field.`);
+  }
+
+  if (button.dataset.friendAction === "remove") {
+    friends = friends.filter((savedFriend) => getFriendId(savedFriend) !== friendId);
+    saveFriends();
+    renderFriendControls();
+    hideFriendDetail();
+    setFriendsStatus("Friend removed.");
+  }
+}
+
+function handleFriendDetailAction(event) {
+  const button = event.target.closest("button[data-friend-detail-action]");
+  if (!button) return;
+
+  if (button.dataset.friendDetailAction === "close") {
+    hideFriendDetail();
+    return;
+  }
+
+  const friend = friends.find((savedFriend) => getFriendId(savedFriend) === button.dataset.friendId);
+  if (!friend) return;
+
+  if (button.dataset.friendDetailAction === "invite") {
+    appendFriendToInviteField(taskInviteEmailsInput, friend);
+    hideFriendDetail();
+  }
+}
+
+function handleFriendInviteClick(event, input) {
+  const button = event.target.closest("button[data-friend-recipient]");
+  if (!button || !input) return;
+
+  const friend = friends.find((savedFriend) => getFriendId(savedFriend) === button.dataset.friendRecipient);
+  if (!friend) return;
+
+  appendFriendToInviteField(input, friend);
+}
+
+function appendFriendToInviteField(input, friend) {
+  const recipient = friend.handle ? `@${friend.handle}` : friend.email;
+  const existing = parseInviteRecipients(input.value);
+  if (!existing.some((label) => label.toLowerCase() === recipient.toLowerCase())) {
+    input.value = [...existing, recipient].join(", ");
+  }
+  input.focus();
+}
+
+function updatePublicGridSetting() {
+  shareSettings = {
+    ...shareSettings,
+    gridPublic: Boolean(publicGridToggle?.checked),
+  };
+  saveShareSettings();
+  renderFriendControls();
+  void syncPublicProfileSnapshot({ silent: true });
+}
+
+function renderFriendControls() {
+  if (publicGridToggle) {
+    publicGridToggle.checked = Boolean(shareSettings.gridPublic);
+  }
+
+  renderFriendInviteChips();
+
+  if (!friendsList) return;
+
+  if (!cloudUser) {
+    friendsList.innerHTML = "";
+    setFriendsStatus("Log in to add friends and share public stats.");
+    return;
+  }
+
+  if (friends.length === 0) {
+    friendsList.innerHTML = '<p class="friends-empty">No friends yet. Add someone by Shedulr name, @name, or email.</p>';
+    setFriendsStatus(shareSettings.gridPublic ? "Your schedule grid is public to friends." : "Your schedule grid is private.");
+    return;
+  }
+
+  friendsList.innerHTML = friends.map(createFriendCard).join("");
+  setFriendsStatus(shareSettings.gridPublic ? "Your schedule grid is public to friends." : "Your schedule grid is private.");
+}
+
+function renderFriendInviteChips() {
+  const lists = [taskFriendInviteList, editFriendInviteList].filter(Boolean);
+  lists.forEach((list) => {
+    if (friends.length === 0) {
+      list.innerHTML = "";
+      list.classList.add("hidden");
+      return;
+    }
+
+    list.classList.remove("hidden");
+    list.innerHTML = friends
+      .map((friend) => `
+        <button class="friend-invite-chip" data-friend-recipient="${escapeHTML(getFriendId(friend))}" type="button">
+          ${escapeHTML(friend.displayName)}
+        </button>
+      `)
+      .join("");
+  });
+}
+
+function createFriendCard(friend) {
+  const friendId = getFriendId(friend);
+  const stats = normalizePublicStats(friend.publicStats);
+  const updatedLabel = stats.updatedAt ? `Updated ${formatShortDate(stats.updatedAt)}` : "No shared stats yet";
+  const gridLabel = friend.gridVisibility === "public" ? "Grid public" : "Grid private";
+
+  return `
+    <article class="friend-card">
+      <button class="friend-main" data-friend-action="view" data-friend-id="${escapeHTML(friendId)}" type="button">
+        <span class="profile-avatar" aria-hidden="true">${escapeHTML(getProfileInitials(friend.displayName))}</span>
+        <span>
+          <strong>${escapeHTML(friend.displayName)}</strong>
+          <small>${escapeHTML(friend.handle ? `@${friend.handle}` : friend.email)} &middot; ${escapeHTML(gridLabel)}</small>
+          <em>${escapeHTML(updatedLabel)}</em>
+        </span>
+      </button>
+      <div class="friend-actions">
+        <button class="secondary-button" data-friend-action="invite" data-friend-id="${escapeHTML(friendId)}" type="button">Invite</button>
+        <button class="secondary-button" data-friend-action="view" data-friend-id="${escapeHTML(friendId)}" type="button">View</button>
+        <button class="danger-button delete-x-button" data-friend-action="remove" data-friend-id="${escapeHTML(friendId)}" type="button" title="Remove" aria-label="Remove">x</button>
+      </div>
+    </article>
+  `;
+}
+
+function openFriendDetail(friend) {
+  if (!friendDetailPanel) return;
+
+  friendDetailPanel.innerHTML = createFriendDetailMarkup(friend);
+  friendDetailPanel.classList.remove("hidden");
+  profileMenu?.classList.add("friend-detail-open");
+}
+
+function hideFriendDetail() {
+  if (!friendDetailPanel) return;
+
+  friendDetailPanel.classList.add("hidden");
+  friendDetailPanel.innerHTML = "";
+  profileMenu?.classList.remove("friend-detail-open");
+}
+
+function createFriendDetailMarkup(friend) {
+  const friendId = getFriendId(friend);
+  const stats = normalizePublicStats(friend.publicStats);
+  const summary = stats.summary;
+  const recent = Array.isArray(stats.recent) ? stats.recent : [];
+  const grid = stats.grid;
+  const gridIsPublic = friend.gridVisibility === "public" && Array.isArray(grid?.days);
+  const recentMarkup = recent.length
+    ? recent.map((item) => `
+        <li>
+          <strong>${escapeHTML(item.title)}</strong>
+          <span>${escapeHTML(item.type)} &middot; ${escapeHTML(formatDateHeading(item.date))} &middot; +${formatPoints(Number(item.points) || 0)} xp</span>
+        </li>
+      `).join("")
+    : "<li><strong>No recent activity shared yet</strong><span>When they finish tasks, it can appear here.</span></li>";
+
+  return `
+    <div class="friend-detail-header">
+      <button class="secondary-button" data-friend-detail-action="close" type="button">Back</button>
+      <button class="primary-button" data-friend-detail-action="invite" data-friend-id="${escapeHTML(friendId)}" type="button">Invite to task</button>
+    </div>
+    <div class="friend-hero">
+      <span class="profile-avatar profile-avatar-large" aria-hidden="true">${escapeHTML(getProfileInitials(friend.displayName))}</span>
+      <div>
+        <p class="eyebrow">Friend Profile</p>
+        <h2>${escapeHTML(friend.displayName)}</h2>
+        <small>${escapeHTML(friend.handle ? `@${friend.handle}` : friend.email)}</small>
+      </div>
+    </div>
+    <div class="friend-stat-grid">
+      ${createFriendStat("7 day xp", formatPoints(summary.weekXp))}
+      ${createFriendStat("Tasks", String(summary.weekTasks))}
+      ${createFriendStat("Hours", formatMinutesAsHours(summary.weekMinutes))}
+      ${createFriendStat("Streak", `${summary.streakDays} day${summary.streakDays === 1 ? "" : "s"}`)}
+    </div>
+    <section class="friend-activity-card">
+      <h3>Recent Activity</h3>
+      <ul>${recentMarkup}</ul>
+    </section>
+    <section class="friend-activity-card">
+      <h3>Schedule Grid</h3>
+      ${gridIsPublic ? createFriendPublicGrid(grid) : '<p class="friends-empty">Their schedule grid is private.</p>'}
+    </section>
+  `;
+}
+
+function createFriendStat(label, value) {
+  return `
+    <article>
+      <span>${escapeHTML(label)}</span>
+      <strong>${escapeHTML(value)}</strong>
+    </article>
+  `;
+}
+
+function createFriendPublicGrid(grid) {
+  const days = Array.isArray(grid.days) ? grid.days : [];
+  if (days.length === 0) return '<p class="friends-empty">No public grid items shared yet.</p>';
+
+  return `
+    <div class="friend-public-grid">
+      ${days.map((day) => `
+        <article>
+          <strong>${escapeHTML(formatShortWeekday(day.date))}</strong>
+          ${(Array.isArray(day.items) && day.items.length > 0)
+            ? day.items.map((item) => `
+                <span style="--type-color: ${escapeHTML(getTaskTypeStyle(item.type).color)}">
+                  ${escapeHTML(formatTimeFromMinutes(timeToMinutes(item.time)))} ${escapeHTML(item.title)}
+                </span>
+              `).join("")
+            : "<small>Free</small>"}
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function setFriendsStatus(message) {
+  if (friendsStatus) friendsStatus.textContent = message;
+}
+
+async function lookupFriendDirectoryProfile(query) {
+  if (!supabaseClient || !cloudUser) return null;
+
+  const label = String(query ?? "").trim();
+  if (!label) return null;
+
+  if (isLikelyEmail(label)) {
+    const { data, error } = await supabaseClient
+      .from(USER_DIRECTORY_TABLE)
+      .select("user_id, email, display_name, handle, public_stats, grid_visibility, updated_at")
+      .eq("email", normalizeEmail(label))
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ? normalizeFriendFromDirectory(data) : null;
+  }
+
+  const displayName = normalizeShedulrDisplayName(label).replace(/^@/, "");
+  const handle = createShedulrHandle(displayName);
+  if (!displayName || !handle) return null;
+
+  const byHandle = await supabaseClient
+    .from(USER_DIRECTORY_TABLE)
+    .select("user_id, email, display_name, handle, public_stats, grid_visibility, updated_at")
+    .eq("handle", handle)
+    .limit(2);
+
+  if (byHandle.error) throw byHandle.error;
+  if (byHandle.data?.length === 1) return normalizeFriendFromDirectory(byHandle.data[0]);
+
+  const byName = await supabaseClient
+    .from(USER_DIRECTORY_TABLE)
+    .select("user_id, email, display_name, handle, public_stats, grid_visibility, updated_at")
+    .ilike("display_name", displayName)
+    .limit(3);
+
+  if (byName.error) throw byName.error;
+  if ((byName.data ?? []).length === 1) return normalizeFriendFromDirectory(byName.data[0]);
+  if ((byName.data ?? []).length > 1) return { ambiguous: true };
+  return null;
+}
+
+function normalizeFriendFromDirectory(data) {
+  const displayName = normalizeShedulrDisplayName(data?.display_name) || "Friend";
+  return {
+    userId: String(data?.user_id ?? ""),
+    email: normalizeEmail(data?.email),
+    displayName,
+    handle: createShedulrHandle(data?.handle || displayName),
+    publicStats: normalizePublicStats(data?.public_stats),
+    gridVisibility: data?.grid_visibility === "public" ? "public" : "private",
+    updatedAt: String(data?.updated_at ?? ""),
+  };
+}
+
+function getFriendId(friend) {
+  return String(friend?.userId || friend?.email || friend?.handle || "");
+}
+
+function normalizeFriends(value) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [])
+    .map((friend) => {
+      const displayName = normalizeShedulrDisplayName(friend?.displayName || friend?.display_name) || "Friend";
+      const normalized = {
+        userId: String(friend?.userId || friend?.user_id || ""),
+        email: normalizeEmail(friend?.email),
+        displayName,
+        handle: createShedulrHandle(friend?.handle || displayName),
+        publicStats: normalizePublicStats(friend?.publicStats || friend?.public_stats),
+        gridVisibility: friend?.gridVisibility === "public" || friend?.grid_visibility === "public" ? "public" : "private",
+        addedAt: String(friend?.addedAt || friend?.added_at || new Date().toISOString()),
+        updatedAt: String(friend?.updatedAt || friend?.updated_at || ""),
+      };
+      const id = getFriendId(normalized);
+      if (!id || seen.has(id)) return null;
+      seen.add(id);
+      return normalized;
+    })
+    .filter(Boolean);
+}
+
+function normalizePublicStats(value) {
+  const stats = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const summary = stats.summary && typeof stats.summary === "object" ? stats.summary : {};
+  return {
+    version: Number(stats.version) || 1,
+    updatedAt: String(stats.updatedAt || stats.updated_at || ""),
+    summary: {
+      todayXp: Math.max(Math.round(Number(summary.todayXp) || 0), 0),
+      weekXp: Math.max(Math.round(Number(summary.weekXp) || 0), 0),
+      weekTasks: Math.max(Math.round(Number(summary.weekTasks) || 0), 0),
+      weekMinutes: Math.max(Math.round(Number(summary.weekMinutes) || 0), 0),
+      streakDays: Math.max(Math.round(Number(summary.streakDays) || 0), 0),
+      topType: normalizeTaskTypeName(summary.topType) || "None yet",
+    },
+    recent: (Array.isArray(stats.recent) ? stats.recent : []).slice(0, 8).map((item) => ({
+      title: String(item?.title ?? "Task").slice(0, 80),
+      type: normalizeTaskTypeName(item?.type) || "Personal",
+      date: isISODateString(item?.date) ? item.date : todayISO,
+      points: Math.max(Math.round(Number(item?.points) || 0), 0),
+      minutes: Math.max(Math.round(Number(item?.minutes) || 0), 0),
+    })),
+    grid: normalizePublicGrid(stats.grid),
+  };
+}
+
+function normalizePublicGrid(grid) {
+  if (!grid || typeof grid !== "object" || !Array.isArray(grid.days)) {
+    return { days: [] };
+  }
+
+  return {
+    start: isISODateString(grid.start) ? grid.start : "",
+    end: isISODateString(grid.end) ? grid.end : "",
+    days: grid.days.slice(0, 7).map((day) => ({
+      date: isISODateString(day?.date) ? day.date : todayISO,
+      items: (Array.isArray(day?.items) ? day.items : []).slice(0, 10).map((item) => ({
+        title: String(item?.title ?? "Task").slice(0, 80),
+        type: normalizeTaskTypeName(item?.type) || "Personal",
+        time: isTimeInputValue(item?.time) ? item.time : "09:00",
+        duration: normalizeTaskDuration(item?.duration),
+        done: Boolean(item?.done),
+      })),
+    })),
+  };
+}
+
 function setShedulrNameStatus(message) {
   if (shedulrNameStatus) shedulrNameStatus.textContent = message;
 }
@@ -6457,10 +7249,14 @@ function getShedulrNameStorageKey() {
 }
 
 function normalizeDirectoryProfile(data) {
+  const displayName = normalizeShedulrDisplayName(data?.display_name);
   return {
-    displayName: normalizeShedulrDisplayName(data?.display_name),
-    handle: createShedulrHandle(data?.handle || data?.display_name),
+    userId: String(data?.user_id ?? ""),
+    displayName,
+    handle: createShedulrHandle(data?.handle || displayName),
     email: normalizeEmail(data?.email),
+    publicStats: normalizePublicStats(data?.public_stats),
+    gridVisibility: data?.grid_visibility === "public" ? "public" : "private",
   };
 }
 
@@ -6480,7 +7276,7 @@ function getDirectoryErrorMessage(error, action) {
   const message = String(error?.message ?? "");
   const lowerMessage = message.toLowerCase();
 
-  if (lowerMessage.includes("relation") || lowerMessage.includes("does not exist")) {
+  if (lowerMessage.includes("relation") || lowerMessage.includes("does not exist") || lowerMessage.includes("column")) {
     return "Shedulr name lookup is missing. Run the updated supabase-setup.sql in Supabase SQL Editor.";
   }
 
@@ -6835,13 +7631,15 @@ function createInvitePreview(invite) {
 
 function createTaskInvitePayload(task) {
   const itemKind = getItemKind(task);
+  const timerMode = getTaskTimerMode(task);
   return {
     sourceTaskId: String(task.id ?? ""),
     itemKind,
     title: normalizeInviteTitle(task.title),
     date: isISODateString(task.date) ? task.date : todayISO,
     time: isTimeInputValue(task.time) ? task.time : "09:00",
-    duration: itemKind === "reminder" ? 0 : clamp(Number(task.duration) || 30, 15, 300),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
+    timerMode,
     type: normalizeTaskTypeName(task.type) || "Personal",
     priority: normalizePriority(task.priority),
     notes: String(task.notes ?? "").trim().slice(0, 700),
@@ -6858,6 +7656,7 @@ function createTaskFromInvite(invite) {
   const date = isISODateString(payload.date) ? payload.date : todayISO;
   const time = isTimeInputValue(payload.time) ? payload.time : "09:00";
   const repeatMode = getRepeatModeForItemKind(itemKind, payload.repeatMode, "weekly");
+  const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(payload.timerMode);
   const repeatDays = normalizeRepeatDays(payload.repeatDays);
   const task = {
     id: crypto.randomUUID(),
@@ -6865,7 +7664,8 @@ function createTaskFromInvite(invite) {
     title: normalizeInviteTitle(payload.title),
     date,
     time,
-    duration: itemKind === "reminder" ? 0 : clamp(Number(payload.duration) || 30, 15, 300),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(payload.duration),
+    timerMode,
     type: normalizeTaskTypeName(payload.type) || "Personal",
     priority: normalizePriority(payload.priority),
     notes: String(payload.notes ?? "").trim().slice(0, 700),
@@ -6934,11 +7734,119 @@ function createProfileCloudData(profileId) {
     taskTemplates: readProfileJSON(TEMPLATE_STORAGE_KEY, profileId, []),
     homeWidgets: readProfileJSON(HOME_WIDGETS_STORAGE_KEY, profileId, []),
     homeWidgetLayout: readProfileJSON(HOME_WIDGET_LAYOUT_STORAGE_KEY, profileId, {}),
+    friends: readProfileJSON(FRIENDS_STORAGE_KEY, profileId, []),
+    shareSettings: readProfileJSON(SHARE_SETTINGS_STORAGE_KEY, profileId, DEFAULT_SHARE_SETTINGS),
     activeTimer: readProfileJSON(TIMER_STORAGE_KEY, profileId, null),
     weeklyReportSeenKey: localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY, profileId)) ?? "",
     dismissedOverlapSignature: localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY, profileId)) ?? "",
     missedTasksCollapsed: localStorage.getItem(getProfileStorageKey(MISSED_COLLAPSE_STORAGE_KEY, profileId)) === "true",
   };
+}
+
+function createPublicProfileSnapshot() {
+  const completedHistory = buildCompletedHistory();
+  const occurrences = buildScheduleOccurrences();
+  const weekDates = new Set(getCurrentWeekDates());
+  const weekCompleted = completedHistory.filter((task) => weekDates.has(task.occurrenceDate));
+  const todayCompleted = completedHistory.filter((task) => task.occurrenceDate === todayISO);
+  const weekMinutes = weekCompleted.reduce((total, task) => total + calculateCompletedMinutes(task), 0);
+  const weekXp = weekCompleted.reduce((total, task) => total + calculatePoints(task), 0);
+  const todayXp = todayCompleted.reduce((total, task) => total + calculatePoints(task), 0);
+  const topType = getTopCompletedType(weekCompleted);
+
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    summary: {
+      todayXp,
+      weekXp,
+      weekTasks: weekCompleted.length,
+      weekMinutes,
+      streakDays: getTopStreakDays(completedHistory),
+      topType: topType.type,
+    },
+    recent: completedHistory.slice(0, 8).map((task) => ({
+      title: task.title,
+      type: task.type,
+      date: task.occurrenceDate,
+      points: calculatePoints(task),
+      minutes: calculateCompletedMinutes(task),
+    })),
+    grid: shareSettings.gridPublic ? createPublicGridSnapshot(occurrences) : { days: [] },
+  };
+}
+
+function createPublicGridSnapshot(occurrences) {
+  const weekDates = getCurrentWeekDates();
+  const weekDateSet = new Set(weekDates);
+  const tasksByDate = groupTasksByDate(
+    occurrences.filter((task) => weekDateSet.has(task.occurrenceDate) && !task.skipped),
+  );
+
+  return {
+    start: weekDates[0],
+    end: weekDates[6],
+    days: weekDates.map((date) => ({
+      date,
+      items: (tasksByDate.get(date) ?? [])
+        .sort((first, second) => timeToMinutes(first.time) - timeToMinutes(second.time))
+        .slice(0, 10)
+        .map((task) => ({
+          title: task.title,
+          type: task.type,
+          time: task.time,
+          duration: getVisualTaskDuration(task),
+          done: Boolean(task.done),
+        })),
+    })),
+  };
+}
+
+function createDirectoryProfilePayload(displayName) {
+  const normalizedDisplayName = normalizeShedulrDisplayName(displayName);
+  return {
+    user_id: cloudUser.id,
+    email: normalizeEmail(cloudUser.email),
+    display_name: normalizedDisplayName,
+    handle: createShedulrHandle(normalizedDisplayName),
+    public_stats: createPublicProfileSnapshot(),
+    grid_visibility: shareSettings.gridPublic ? "public" : "private",
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function syncPublicProfileSnapshot(options = {}) {
+  if (!supabaseClient || !cloudUser) return false;
+
+  const displayName = normalizeShedulrDisplayName(
+    cloudDirectoryProfile?.displayName
+    || localStorage.getItem(getShedulrNameStorageKey())
+    || getActiveProfile()?.name
+    || String(cloudUser.email ?? "").split("@")[0],
+  );
+  if (!displayName) return false;
+
+  const { error } = await supabaseClient
+    .from(USER_DIRECTORY_TABLE)
+    .upsert(createDirectoryProfilePayload(displayName), { onConflict: "user_id" });
+
+  if (error) {
+    if (!options.silent) {
+      const message = getDirectoryErrorMessage(error, "update your public profile");
+      setFriendsStatus(message);
+      showAppToast("Public profile not updated", message);
+    }
+    console.error(error);
+    return false;
+  }
+
+  cloudDirectoryProfile = {
+    ...(cloudDirectoryProfile ?? {}),
+    displayName,
+    handle: createShedulrHandle(displayName),
+    email: normalizeEmail(cloudUser.email),
+  };
+  return true;
 }
 
 function applyCloudSnapshot(snapshot) {
@@ -6967,6 +7875,8 @@ function applyCloudSnapshot(snapshot) {
     homeWidgets = loadHomeWidgets();
     homeWidgetLayout = loadHomeWidgetLayout();
     taskTemplates = loadTaskTemplates();
+    friends = loadFriends();
+    shareSettings = loadShareSettings();
     dismissedOverlapSignature = localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY)) ?? "";
     missedTasksCollapsed = localStorage.getItem(getProfileStorageKey(MISSED_COLLAPSE_STORAGE_KEY)) === "true";
     activeTimer = loadActiveTimer();
@@ -6974,6 +7884,7 @@ function applyCloudSnapshot(snapshot) {
 
     saveCustomTaskTypes();
     renderProfileControls();
+    renderFriendControls();
     renderTaskTypeOptions();
     renderTaskTemplateOptions();
     renderHomeWidgetControls();
@@ -7020,6 +7931,8 @@ function writeProfileCloudData(profileId, data) {
     profileId,
     normalizeHomeWidgetLayout(data.homeWidgetLayout ?? {}),
   );
+  writeProfileJSON(FRIENDS_STORAGE_KEY, profileId, normalizeFriends(data.friends));
+  writeProfileJSON(SHARE_SETTINGS_STORAGE_KEY, profileId, normalizeShareSettings(data.shareSettings ?? {}));
 
   if (data.activeTimer) {
     writeProfileJSON(TIMER_STORAGE_KEY, profileId, data.activeTimer);
@@ -7206,12 +8119,15 @@ function switchProfile(profileId) {
   homeWidgets = loadHomeWidgets();
   homeWidgetLayout = loadHomeWidgetLayout();
   taskTemplates = loadTaskTemplates();
+  friends = loadFriends();
+  shareSettings = loadShareSettings();
   dismissedOverlapSignature = localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY)) ?? "";
   missedTasksCollapsed = localStorage.getItem(getProfileStorageKey(MISSED_COLLAPSE_STORAGE_KEY)) === "true";
   activeTimer = loadActiveTimer();
   displayedTodayXp = null;
   saveCustomTaskTypes();
   renderProfileControls();
+  renderFriendControls();
   renderTaskTypeOptions();
   renderTaskTemplateOptions();
   renderHomeWidgetControls();
@@ -7248,6 +8164,7 @@ function renderProfileControls() {
   removeProfilePhotoButton.disabled = !activeProfile.avatarDataUrl;
 
   profileList.innerHTML = profiles.map((profile) => createProfileRow(profile, activeProfile.id)).join("");
+  renderFriendControls();
 }
 
 function createProfileRow(profile, selectedProfileId) {
@@ -7417,6 +8334,16 @@ function saveHomeWidgetLayout() {
   queueCloudSave();
 }
 
+function saveFriends() {
+  localStorage.setItem(getProfileStorageKey(FRIENDS_STORAGE_KEY), JSON.stringify(friends));
+  queueCloudSave();
+}
+
+function saveShareSettings() {
+  localStorage.setItem(getProfileStorageKey(SHARE_SETTINGS_STORAGE_KEY), JSON.stringify(shareSettings));
+  queueCloudSave();
+}
+
 function loadTasks() {
   try {
     return normalizeTasks(JSON.parse(localStorage.getItem(getProfileStorageKey(STORAGE_KEY))) ?? []);
@@ -7465,6 +8392,30 @@ function loadHomeWidgets() {
   } catch {
     return DEFAULT_HOME_WIDGETS;
   }
+}
+
+function loadFriends() {
+  try {
+    return normalizeFriends(JSON.parse(localStorage.getItem(getProfileStorageKey(FRIENDS_STORAGE_KEY))) ?? []);
+  } catch {
+    return [];
+  }
+}
+
+function loadShareSettings() {
+  try {
+    return normalizeShareSettings(JSON.parse(localStorage.getItem(getProfileStorageKey(SHARE_SETTINGS_STORAGE_KEY))) ?? {});
+  } catch {
+    return normalizeShareSettings({});
+  }
+}
+
+function normalizeShareSettings(value) {
+  return {
+    ...DEFAULT_SHARE_SETTINGS,
+    ...(value && typeof value === "object" && !Array.isArray(value) ? value : {}),
+    gridPublic: Boolean(value?.gridPublic),
+  };
 }
 
 function normalizeHomeWidgets(value) {
@@ -7609,29 +8560,35 @@ function isTimeInputValue(value) {
 }
 
 function normalizeTasks(savedTasks) {
-  return savedTasks.map((task) => ({
-    ...task,
-    itemKind: normalizeItemKind(task.itemKind),
-    duration: normalizeItemKind(task.itemKind) === "reminder" ? 0 : clamp(Number(task.duration) || 30, 15, 300),
-    priority: normalizePriority(task.priority),
-    repeats: Boolean(task.repeats),
-    repeatMode: getRepeatModeForItemKind(task.itemKind, task.repeatMode, "weekly"),
-    repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
-    repeatDays: normalizeRepeatDays(task.repeatDays),
-    completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
-    skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates : [],
-    earnedPoints: Number.isFinite(Number(task.earnedPoints)) ? Math.round(Number(task.earnedPoints)) : null,
-    actualMinutes: Number.isFinite(Number(task.actualMinutes)) ? Math.round(Number(task.actualMinutes)) : null,
-    earnedPointsByDate: normalizeNumberMap(task.earnedPointsByDate),
-    actualMinutesByDate: normalizeNumberMap(task.actualMinutesByDate),
-    inviteEmails: normalizeInviteEmails(task.inviteEmails),
-    inviteLabels: normalizeInviteLabels(task.inviteLabels ?? task.inviteEmails),
-    sentInviteEmails: normalizeInviteEmails(task.sentInviteEmails),
-    sharedInviteId: String(task.sharedInviteId ?? ""),
-    sharedByEmail: normalizeEmail(task.sharedByEmail),
-    sharedByName: normalizeShedulrDisplayName(task.sharedByName),
-    skipped: Boolean(task.skipped),
-  }));
+  return savedTasks.map((task) => {
+    const itemKind = normalizeItemKind(task.itemKind);
+    const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(task.timerMode);
+
+    return {
+      ...task,
+      itemKind,
+      duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
+      timerMode,
+      priority: normalizePriority(task.priority),
+      repeats: Boolean(task.repeats),
+      repeatMode: getRepeatModeForItemKind(task.itemKind, task.repeatMode, "weekly"),
+      repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
+      repeatDays: normalizeRepeatDays(task.repeatDays),
+      completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
+      skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates : [],
+      earnedPoints: Number.isFinite(Number(task.earnedPoints)) ? Math.round(Number(task.earnedPoints)) : null,
+      actualMinutes: Number.isFinite(Number(task.actualMinutes)) ? Math.round(Number(task.actualMinutes)) : null,
+      earnedPointsByDate: normalizeNumberMap(task.earnedPointsByDate),
+      actualMinutesByDate: normalizeNumberMap(task.actualMinutesByDate),
+      inviteEmails: normalizeInviteEmails(task.inviteEmails),
+      inviteLabels: normalizeInviteLabels(task.inviteLabels ?? task.inviteEmails),
+      sentInviteEmails: normalizeInviteEmails(task.sentInviteEmails),
+      sharedInviteId: String(task.sharedInviteId ?? ""),
+      sharedByEmail: normalizeEmail(task.sharedByEmail),
+      sharedByName: normalizeShedulrDisplayName(task.sharedByName),
+      skipped: Boolean(task.skipped),
+    };
+  });
 }
 
 function normalizeNumberMap(value) {
@@ -7646,11 +8603,13 @@ function normalizeNumberMap(value) {
 
 function normalizeTaskTemplate(template) {
   const itemKind = normalizeItemKind(template.itemKind);
+  const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(template.timerMode);
   return {
     id: template.id || crypto.randomUUID(),
     itemKind,
     title: String(template.title ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
-    duration: itemKind === "reminder" ? 0 : clamp(Number(template.duration) || 30, 15, 300),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(template.duration),
+    timerMode,
     type: normalizeTaskTypeName(template.type),
     notes: String(template.notes ?? "").trim().slice(0, 400),
     priority: normalizePriority(template.priority),
