@@ -98,6 +98,8 @@ const startupScreen = document.querySelector("#startupScreen");
 const startupQuote = document.querySelector("#startupQuote");
 const taskForm = document.querySelector("#taskForm");
 const taskList = document.querySelector("#taskList");
+const scheduleListLayout = document.querySelector("#scheduleListLayout");
+const scheduleListTimeline = document.querySelector("#scheduleListTimeline");
 const scheduleGrid = document.querySelector("#scheduleGrid");
 const emptyState = document.querySelector("#emptyState");
 const overlapAlert = document.querySelector("#overlapAlert");
@@ -123,7 +125,6 @@ const todayDayparts = document.querySelector("#todayDayparts");
 const todayNextTask = document.querySelector("#todayNextTask");
 const daySummary = document.querySelector(".day-summary");
 const homeAddTaskButton = document.querySelector("#homeAddTaskButton");
-const homeStatsSnapshots = document.querySelector("#homeStatsSnapshots");
 const homeWeekStrip = document.querySelector("#homeWeekStrip");
 const homeDayGrid = document.querySelector("#homeDayGrid");
 const homeGridRangeInput = document.querySelector("#homeGridRange");
@@ -138,7 +139,6 @@ const todayLabel = document.querySelector("#todayLabel");
 const todayXpValue = document.querySelector("#todayXpValue");
 const topStreakPill = document.querySelector("#topStreakPill");
 const topStreakValue = document.querySelector("#topStreakValue");
-const scheduleFilter = document.querySelector("#scheduleFilter");
 const scheduleGridRange = document.querySelector("#scheduleGridRange");
 const schedulePanel = document.querySelector("#schedulePanel");
 const scheduleHeader = document.querySelector("#schedulePanel .schedule-header");
@@ -295,8 +295,13 @@ const editRepeatEndField = document.querySelector("#editRepeatEndField");
 const editRepeatEndDateInput = document.querySelector("#editRepeatEndDate");
 const editWeekdayPicker = document.querySelector("#editWeekdayPicker");
 const editTaskMeetingField = document.querySelector("#editTaskMeetingField");
-const scheduleTypeFilter = document.querySelector("#scheduleTypeFilter");
-const schedulePriorityFilter = document.querySelector("#schedulePriorityFilter");
+const scheduleFilterButton = document.querySelector("#scheduleFilterButton");
+const scheduleFilterBadge = document.querySelector("#scheduleFilterBadge");
+const scheduleFilterOverlay = document.querySelector("#scheduleFilterOverlay");
+const closeScheduleFilterButton = document.querySelector("#closeScheduleFilterButton");
+const clearScheduleFiltersButton = document.querySelector("#clearScheduleFiltersButton");
+const doneScheduleFiltersButton = document.querySelector("#doneScheduleFiltersButton");
+const scheduleTypeFilterOptions = document.querySelector("#scheduleTypeFilterOptions");
 const taskSelectionToolbar = document.querySelector("#taskSelectionToolbar");
 const taskSelectionCount = document.querySelector("#taskSelectionCount");
 const selectAllTasksButton = document.querySelector("#selectAllTasksButton");
@@ -317,7 +322,23 @@ const noteEditor = document.querySelector("#noteEditor");
 const notesEmptyState = document.querySelector("#notesEmptyState");
 const noteEditorFields = document.querySelector("#noteEditorFields");
 const noteTitleInput = document.querySelector("#noteTitleInput");
-const noteBodyInput = document.querySelector("#noteBodyInput");
+const notePage = document.querySelector("#notePage");
+const noteBodyEditor = document.querySelector("#noteBodyEditor");
+const noteToolbar = document.querySelector(".note-toolbar");
+const noteFontSelect = document.querySelector("#noteFontSelect");
+const noteTextSizeSelect = document.querySelector("#noteTextSizeSelect");
+const noteSpeechButton = document.querySelector("#noteSpeechButton");
+const noteDrawingCanvas = document.querySelector("#noteDrawingCanvas");
+const notePenColorInput = document.querySelector("#notePenColor");
+const notePenSizeInput = document.querySelector("#notePenSize");
+const noteTextModeButton = document.querySelector("#noteTextModeButton");
+const notePenButton = document.querySelector("#notePenButton");
+const notePenPalette = document.querySelector("#notePenPalette");
+const notePenPresetButtons = document.querySelectorAll("[data-note-pen-preset]");
+const noteEraserButton = document.querySelector("#noteEraserButton");
+const noteEraserOptions = document.querySelector("#noteEraserOptions");
+const noteEraserModeButtons = document.querySelectorAll("[data-note-eraser-mode]");
+const noteClearDrawingButton = document.querySelector("#noteClearDrawingButton");
 const noteSavedStatus = document.querySelector("#noteSavedStatus");
 const deleteNoteButton = document.querySelector("#deleteNoteButton");
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) ?? null;
@@ -392,6 +413,20 @@ let selectedMissedKeys = new Set();
 let currentVisibleTaskKeys = [];
 let currentVisibleMissedKeys = [];
 let monthPointerState = null;
+let scheduleTypeFilters = new Set();
+let schedulePriorityFilters = new Set();
+let noteSpeechRecognition = null;
+let noteSpeechListening = false;
+let noteDrawingState = null;
+let noteDrawingMode = "text";
+let notePenPreset = "pen";
+let noteEraserMode = "pixel";
+
+const NOTE_PEN_PRESETS = {
+  pen: { color: "#2e7d5b", size: 5, alpha: 1 },
+  highlighter: { color: "#ffd166", size: 16, alpha: 0.38 },
+  crayon: { color: "#7f5af0", size: 9, alpha: 0.82 },
+};
 
 const TASK_TYPE_STYLES = {
   Focus: { color: "#2d6f9f", bg: "rgba(45, 111, 159, 0.14)" },
@@ -416,6 +451,7 @@ const DEFAULT_FEATURE_SETTINGS = {
   missedTasks: true,
   focusMode: false,
   taskReminders: false,
+  listTimeline: false,
 };
 
 const DEFAULT_SHARE_SETTINGS = {
@@ -513,7 +549,6 @@ scheduleAnchorDate = todayISO;
 homeGridAnchorDate = todayISO;
 taskDateInput.value = todayISO;
 scheduleDatePicker.value = scheduleAnchorDate;
-scheduleFilter.value = "today";
 scheduleGridRange.value = "week";
 if (homeGridDatePicker) homeGridDatePicker.value = homeGridAnchorDate;
 friends = loadFriends();
@@ -527,9 +562,12 @@ applyStartupQuote();
 saveCustomTaskTypes();
 renderProfileControls();
 renderTaskTypeOptions();
-renderScheduleTypeFilter();
+renderScheduleFilterControls();
 renderTaskTemplateOptions();
 renderNotes();
+setNotePenPreset("pen", { activatePen: false });
+setNoteEraserMode("pixel", { activateEraser: false });
+setNoteDrawingMode("text");
 applyWeeklyGoalsToControls();
 applyFeatureSettingsToControls();
 applyTheme(currentTheme);
@@ -586,10 +624,15 @@ scheduleViewButtons.forEach((button) => {
   });
 });
 
-scheduleFilter.addEventListener("change", render);
 scheduleGridRange.addEventListener("change", render);
-scheduleTypeFilter?.addEventListener("change", render);
-schedulePriorityFilter?.addEventListener("change", render);
+scheduleFilterButton?.addEventListener("click", openScheduleFilterOverlay);
+closeScheduleFilterButton?.addEventListener("click", closeScheduleFilterOverlay);
+doneScheduleFiltersButton?.addEventListener("click", closeScheduleFilterOverlay);
+clearScheduleFiltersButton?.addEventListener("click", clearScheduleFilters);
+scheduleFilterOverlay?.addEventListener("click", (event) => {
+  if (event.target === scheduleFilterOverlay) closeScheduleFilterOverlay();
+});
+scheduleFilterOverlay?.addEventListener("change", handleScheduleFilterChange);
 scheduleDatePicker.addEventListener("change", () => setScheduleAnchorDate(scheduleDatePicker.value));
 schedulePrevDateButton.addEventListener("click", () => shiftScheduleAnchorDate(-getScheduleNavigationStep()));
 scheduleNextDateButton.addEventListener("click", () => shiftScheduleAnchorDate(getScheduleNavigationStep()));
@@ -636,8 +679,29 @@ clearSelectedMissedButton?.addEventListener("click", () => {
 newNoteButton?.addEventListener("click", createNote);
 notesList?.addEventListener("click", handleNotesListClick);
 noteTitleInput?.addEventListener("input", saveActiveNoteFromEditor);
-noteBodyInput?.addEventListener("input", saveActiveNoteFromEditor);
+noteBodyEditor?.addEventListener("input", saveActiveNoteFromEditor);
+noteBodyEditor?.addEventListener("paste", handleNotePaste);
+noteToolbar?.addEventListener("click", handleNoteToolbarClick);
+noteFontSelect?.addEventListener("change", applyNoteFont);
+noteTextSizeSelect?.addEventListener("change", applyNoteTextSize);
+noteSpeechButton?.addEventListener("click", toggleNoteSpeechToText);
+noteTextModeButton?.addEventListener("click", () => setNoteDrawingMode("text"));
+notePenButton?.addEventListener("click", () => setNoteDrawingMode("pen"));
+notePenPresetButtons.forEach((button) => {
+  button.addEventListener("click", () => setNotePenPreset(button.dataset.notePenPreset));
+});
+noteEraserButton?.addEventListener("click", () => setNoteDrawingMode("eraser"));
+noteEraserModeButtons.forEach((button) => {
+  button.addEventListener("click", () => setNoteEraserMode(button.dataset.noteEraserMode));
+});
+noteClearDrawingButton?.addEventListener("click", clearNoteDrawing);
+noteDrawingCanvas?.addEventListener("pointerdown", startNoteDrawing);
+noteDrawingCanvas?.addEventListener("pointermove", drawNoteStroke);
+noteDrawingCanvas?.addEventListener("pointerup", finishNoteDrawing);
+noteDrawingCanvas?.addEventListener("pointerleave", finishNoteDrawing);
+noteDrawingCanvas?.addEventListener("pointercancel", finishNoteDrawing);
 deleteNoteButton?.addEventListener("click", deleteActiveNote);
+window.addEventListener("resize", () => requestAnimationFrame(renderActiveNoteDrawing));
 taskItemKindInput.addEventListener("change", toggleItemKindFields);
 taskTimerModeInput.addEventListener("change", toggleItemKindFields);
 [taskDurationHoursInput, taskDurationMinutesInput].forEach((input) => {
@@ -1068,6 +1132,7 @@ overlapAlert.addEventListener("click", (event) => {
 initializeCloudAuth();
 render();
 setInterval(refreshTopStreakStatus, 60 * 1000);
+setInterval(updateScheduleListTimelineCurrentTime, 60 * 1000);
 
 function applyStartupQuote() {
   if (!startupQuote || STARTUP_QUOTES.length === 0) return;
@@ -1093,6 +1158,9 @@ function switchTab(tabName) {
   document.querySelector("#completedPanel").classList.toggle("active", tabName === "completed");
   document.querySelector("#notesPanel").classList.toggle("active", tabName === "notes");
   document.querySelector("#statsPanel").classList.toggle("active", tabName === "stats");
+  if (tabName === "notes") {
+    requestAnimationFrame(renderActiveNoteDrawing);
+  }
 }
 
 function render() {
@@ -1118,7 +1186,7 @@ function render() {
   renderTodaySummary(occurrences);
   renderHomeDashboard(occurrences, completedHistory);
   renderMissedTasks();
-  renderScheduleTypeFilter();
+  renderScheduleFilterControls();
   renderFocusOverlay(occurrences);
   applyFeatureVisibility();
   reminderOccurrences = occurrences;
@@ -1138,7 +1206,10 @@ function render() {
   taskList.innerHTML = visibleOccurrences.map(createTaskCard).join("");
   scheduleGrid.innerHTML = createScheduleDisplay(scheduleDisplayOccurrences);
   updateTimerDisplay();
-  taskList.classList.toggle("hidden", scheduleView !== "list");
+  renderScheduleListTimeline(visibleOccurrences);
+  const isListView = scheduleView === "list";
+  scheduleListLayout?.classList.toggle("hidden", !isListView);
+  taskList.classList.toggle("hidden", !isListView);
   scheduleGrid.classList.toggle("active", scheduleView !== "list");
   scheduleGrid.classList.toggle("month-mode", scheduleView === "month");
   emptyState.classList.toggle("visible", scheduleView === "list" && visibleOccurrences.length === 0);
@@ -1495,14 +1566,6 @@ function createTodayDayparts(todaysTasks) {
 }
 
 function renderHomeDashboard(occurrences, completedHistory) {
-  const todaysTasks = occurrences
-    .filter((task) => task.occurrenceDate === todayISO && !task.skipped)
-    .sort((first, second) => timeToMinutes(first.time) - timeToMinutes(second.time));
-
-  if (homeStatsSnapshots) {
-    homeStatsSnapshots.innerHTML = createHomeStatsSnapshots(todaysTasks, completedHistory);
-  }
-
   if (homeWeekStrip) {
     homeWeekStrip.innerHTML = createHomeWeekStrip(occurrences);
   }
@@ -1523,37 +1586,6 @@ function renderHomeDashboard(occurrences, completedHistory) {
     });
     updateHomeGridControls();
   }
-}
-
-function createHomeStatsSnapshots(todaysTasks, completedHistory) {
-  const completedToday = todaysTasks.filter((task) => task.done);
-  const pointsToday = completedToday.reduce((total, task) => total + calculatePoints(task), 0);
-  const minutesToday = completedToday.reduce((total, task) => total + calculateCompletedMinutes(task), 0);
-  const weekDates = new Set(getCurrentWeekDates());
-  const weekTasks = completedHistory.filter((task) => weekDates.has(task.occurrenceDate));
-  const weekPoints = weekTasks.reduce((total, task) => total + calculatePoints(task), 0);
-  const weekMinutes = weekTasks.reduce((total, task) => total + calculateCompletedMinutes(task), 0);
-  const remaining = Math.max(todaysTasks.length - completedToday.length, 0);
-  const completionPercent = todaysTasks.length
-    ? Math.round((completedToday.length / todaysTasks.length) * 100)
-    : 0;
-
-  return [
-    createHomeStatSnapshot("Today xp", `${formatPoints(pointsToday)} xp`, `${completionPercent}% complete`),
-    createHomeStatSnapshot("Time done", formatMinutesAsHours(minutesToday), `${remaining} left today`),
-    createHomeStatSnapshot("Week xp", `${formatPoints(weekPoints)} xp`, `${formatMinutesAsHours(weekMinutes)} tracked`),
-    createHomeStatSnapshot("Streak", `${getTopStreakDays(completedHistory)}d`, featureSettings.streaks ? "Current run" : "Turned off"),
-  ].join("");
-}
-
-function createHomeStatSnapshot(label, value, detail) {
-  return `
-    <article class="home-stat-snapshot">
-      <span>${escapeHTML(label)}</span>
-      <strong>${escapeHTML(value)}</strong>
-      <small>${escapeHTML(detail)}</small>
-    </article>
-  `;
 }
 
 function createHomeWeekStrip(occurrences) {
@@ -3051,11 +3083,10 @@ function renderMissedSelectionState() {
 }
 
 function renderSelectionToolbars() {
-  const showDesktopTools = isDesktopSelectionDevice();
   const taskCount = selectedTaskKeys.size;
   const missedCount = selectedMissedKeys.size;
-  const showTaskToolbar = (showDesktopTools || taskCount > 0) && scheduleView !== "month" && currentVisibleTaskKeys.length > 0;
-  const showMissedToolbar = (showDesktopTools || missedCount > 0) && currentVisibleMissedKeys.length > 0 && !missedTasksCollapsed;
+  const showTaskToolbar = taskCount > 0 && scheduleView !== "month" && currentVisibleTaskKeys.length > 0;
+  const showMissedToolbar = missedCount > 0 && currentVisibleMissedKeys.length > 0 && !missedTasksCollapsed;
 
   taskSelectionToolbar?.classList.toggle("hidden", !showTaskToolbar);
   if (taskSelectionCount) {
@@ -3331,7 +3362,6 @@ function finishMonthDayPointer(event) {
 
   event.preventDefault();
   scheduleView = "list";
-  scheduleFilter.value = "today";
   setScheduleAnchorDate(state.date);
 }
 
@@ -3748,7 +3778,7 @@ function renderMissedTasks() {
   }
 
   const missedTasks = buildMissedOccurrences();
-  currentVisibleMissedKeys = missedTasks.slice(0, 8).map(createOccurrenceKey);
+  currentVisibleMissedKeys = missedTasks.map(createOccurrenceKey);
   selectedMissedKeys = pruneSelectionToVisible(selectedMissedKeys, currentVisibleMissedKeys);
   missedTasksPanel.classList.toggle("hidden", missedTasks.length === 0);
   missedTasksPanel.classList.toggle("collapsed", missedTasksCollapsed);
@@ -3863,6 +3893,66 @@ function createTaskCard(task) {
       </div>
     </article>
   `;
+}
+
+function renderScheduleListTimeline(occurrences) {
+  if (!scheduleListTimeline) return;
+
+  const shouldShowTimeline = Boolean(
+    featureSettings.listTimeline
+      && scheduleView === "list"
+      && scheduleAnchorDate === todayISO
+      && occurrences.length > 0,
+  );
+  scheduleListTimeline.classList.toggle("hidden", !shouldShowTimeline);
+  scheduleListLayout?.classList.toggle("timeline-enabled", shouldShowTimeline);
+
+  if (!shouldShowTimeline) {
+    scheduleListTimeline.innerHTML = "";
+    return;
+  }
+
+  const markers = occurrences
+    .filter((task) => !task.skipped)
+    .map((task) => {
+      const typeStyle = getTaskTypeStyle(task.type);
+      const top = clamp((timeToMinutes(task.time) / (24 * 60)) * 100, 1, 99);
+      const label = `${formatTimeFromMinutes(timeToMinutes(task.time))} ${task.title}`;
+
+      return `
+        <span
+          class="list-timeline-task-marker ${isReminderItem(task) ? "reminder" : ""}"
+          style="--marker-top: ${top.toFixed(2)}%; --type-color: ${typeStyle.color};"
+          title="${escapeHTML(label)}"
+          aria-hidden="true"
+        ></span>
+      `;
+    })
+    .join("");
+
+  scheduleListTimeline.innerHTML = `
+    <div class="list-timeline-rail" aria-hidden="true">
+      <span class="list-timeline-label start">12a</span>
+      <span class="list-timeline-label noon">12p</span>
+      <span class="list-timeline-label end">12a</span>
+      ${markers}
+      <span class="list-current-time-dot"></span>
+    </div>
+    <span class="list-current-time-label" data-list-timeline-current-label></span>
+  `;
+  updateScheduleListTimelineCurrentTime();
+}
+
+function updateScheduleListTimelineCurrentTime() {
+  if (!scheduleListTimeline || scheduleListTimeline.classList.contains("hidden")) return;
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const top = clamp((currentMinutes / (24 * 60)) * 100, 1, 99);
+  scheduleListTimeline.style.setProperty("--current-time-top", `${top.toFixed(2)}%`);
+
+  const label = scheduleListTimeline.querySelector("[data-list-timeline-current-label]");
+  if (label) label.textContent = formatTimeFromMinutes(currentMinutes);
 }
 
 function createCompletedTaskCard(task) {
@@ -4586,16 +4676,84 @@ function renderTaskTypeOptions(selectedType = taskTypeInput.value || BUILT_IN_TA
   toggleCustomTypeInput();
 }
 
-function renderScheduleTypeFilter() {
-  if (!scheduleTypeFilter) return;
+function renderScheduleFilterControls() {
+  renderScheduleTypeFilterOptions();
+  syncScheduleFilterInputs();
+  updateScheduleFilterBadge();
+}
 
-  const previousValue = scheduleTypeFilter.value || "all";
+function renderScheduleTypeFilterOptions() {
+  if (!scheduleTypeFilterOptions) return;
+
   const options = [...BUILT_IN_TASK_TYPES, ...customTaskTypes];
-  scheduleTypeFilter.innerHTML = `
-    <option value="all">All types</option>
-    ${options.map((type) => `<option value="${escapeHTML(type)}">${escapeHTML(type)}</option>`).join("")}
-  `;
-  scheduleTypeFilter.value = previousValue === "all" || options.includes(previousValue) ? previousValue : "all";
+  scheduleTypeFilters = new Set([...scheduleTypeFilters].filter((type) => options.includes(type)));
+  scheduleTypeFilterOptions.innerHTML = options.map((type) => `
+    <label class="filter-toggle">
+      <input type="checkbox" value="${escapeHTML(type)}" data-schedule-type-filter />
+      <span>${escapeHTML(type)}</span>
+    </label>
+  `).join("");
+}
+
+function syncScheduleFilterInputs() {
+  document.querySelectorAll("[data-schedule-type-filter]").forEach((input) => {
+    input.checked = scheduleTypeFilters.has(input.value);
+  });
+  document.querySelectorAll("[data-schedule-priority-filter]").forEach((input) => {
+    input.checked = schedulePriorityFilters.has(input.value);
+  });
+}
+
+function updateScheduleFilterBadge() {
+  if (!scheduleFilterBadge) return;
+
+  const activeCount = scheduleTypeFilters.size + schedulePriorityFilters.size;
+  scheduleFilterBadge.textContent = String(activeCount);
+  scheduleFilterBadge.classList.toggle("hidden", activeCount === 0);
+}
+
+function openScheduleFilterOverlay() {
+  renderScheduleFilterControls();
+  scheduleFilterOverlay?.classList.remove("hidden");
+  scheduleFilterOverlay?.setAttribute("aria-hidden", "false");
+  scheduleFilterButton?.setAttribute("aria-expanded", "true");
+}
+
+function closeScheduleFilterOverlay() {
+  scheduleFilterOverlay?.classList.add("hidden");
+  scheduleFilterOverlay?.setAttribute("aria-hidden", "true");
+  scheduleFilterButton?.setAttribute("aria-expanded", "false");
+}
+
+function clearScheduleFilters() {
+  scheduleTypeFilters = new Set();
+  schedulePriorityFilters = new Set();
+  renderScheduleFilterControls();
+  render();
+}
+
+function handleScheduleFilterChange(event) {
+  const input = event.target.closest("input[type='checkbox']");
+  if (!input) return;
+
+  if (input.matches("[data-schedule-type-filter]")) {
+    scheduleTypeFilters = updateFilterSet(scheduleTypeFilters, input.value, input.checked);
+  }
+  if (input.matches("[data-schedule-priority-filter]")) {
+    schedulePriorityFilters = updateFilterSet(schedulePriorityFilters, input.value, input.checked);
+  }
+  updateScheduleFilterBadge();
+  render();
+}
+
+function updateFilterSet(filterSet, value, isChecked) {
+  const nextSet = new Set(filterSet);
+  if (isChecked) {
+    nextSet.add(value);
+  } else {
+    nextSet.delete(value);
+  }
+  return nextSet;
 }
 
 function toggleCustomTypeInput() {
@@ -4752,7 +4910,7 @@ function saveCustomTaskType(type) {
   customTaskTypes = mergeCustomTaskTypes(customTaskTypes, [taskType]);
   saveCustomTaskTypes();
   renderTaskTypeOptions(taskType);
-  renderScheduleTypeFilter();
+  renderScheduleFilterControls();
 }
 
 function mergeCustomTaskTypes(currentTypes, newTypes) {
@@ -5577,22 +5735,12 @@ function matchesCurrentFilter(task) {
   if (task.skipped) return false;
   if (!matchesScheduleExtraFilters(task)) return false;
 
-  const filter = scheduleFilter.value;
-  const taskDateTime = new Date(`${task.occurrenceDate}T${task.time}`);
-  const selectedDateStart = parseISODate(scheduleAnchorDate);
-
-  if (filter === "today") return task.occurrenceDate === scheduleAnchorDate && !task.done;
-  if (filter === "upcoming") return !task.done && taskDateTime >= selectedDateStart;
-  if (filter === "done") return task.done;
-  return true;
+  return task.occurrenceDate === scheduleAnchorDate && !task.done;
 }
 
 function matchesScheduleExtraFilters(task) {
-  const typeFilter = scheduleTypeFilter?.value ?? "all";
-  const priorityFilter = schedulePriorityFilter?.value ?? "all";
-
-  if (typeFilter !== "all" && task.type !== typeFilter) return false;
-  if (priorityFilter !== "all" && normalizePriority(task.priority) !== priorityFilter) return false;
+  if (scheduleTypeFilters.size > 0 && !scheduleTypeFilters.has(task.type)) return false;
+  if (schedulePriorityFilters.size > 0 && !schedulePriorityFilters.has(normalizePriority(task.priority))) return false;
   return true;
 }
 
@@ -8771,7 +8919,7 @@ function applyCloudSnapshot(snapshot) {
     renderProfileControls();
     renderFriendControls();
     renderTaskTypeOptions();
-    renderScheduleTypeFilter();
+    renderScheduleFilterControls();
     renderTaskTemplateOptions();
     renderNotes();
     renderHomeWidgetControls();
@@ -9021,7 +9169,7 @@ function switchProfile(profileId) {
   renderProfileControls();
   renderFriendControls();
   renderTaskTypeOptions();
-  renderScheduleTypeFilter();
+  renderScheduleFilterControls();
   renderTaskTemplateOptions();
   renderNotes();
   renderHomeWidgetControls();
@@ -9219,13 +9367,17 @@ function renderNotes() {
   if (!activeNote) return;
 
   noteTitleInput.value = activeNote.title;
-  noteBodyInput.value = activeNote.body;
+  noteBodyEditor.innerHTML = normalizeNoteHTML(activeNote.body);
   noteSavedStatus.textContent = `Saved ${formatShortDate(activeNote.updatedAt)}`;
+  requestAnimationFrame(() => {
+    syncNoteCanvasSize();
+    renderActiveNoteDrawing();
+  });
 }
 
 function createNoteListItem(note) {
   const title = note.title || "Untitled note";
-  const preview = note.body.trim().split(/\n+/)[0] || "No extra text";
+  const preview = getNotePlainText(note.body) || "No extra text";
 
   return `
     <button class="note-list-item ${note.id === activeNoteId ? "active" : ""}" type="button" data-note-id="${escapeHTML(note.id)}">
@@ -9250,6 +9402,9 @@ function createNote() {
     id: crypto.randomUUID(),
     title: "Untitled note",
     body: "",
+    drawingBaseDataUrl: "",
+    drawingDataUrl: "",
+    drawingStrokes: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -9261,6 +9416,7 @@ function createNote() {
   requestAnimationFrame(() => {
     noteTitleInput?.focus();
     noteTitleInput?.select();
+    renderActiveNoteDrawing();
   });
 }
 
@@ -9274,7 +9430,7 @@ function saveActiveNoteFromEditor() {
       ? {
           ...note,
           title: normalizeNoteTitle(noteTitleInput.value),
-          body: String(noteBodyInput.value ?? "").slice(0, 16000),
+          body: normalizeNoteHTML(noteBodyEditor.innerHTML),
           updatedAt: now,
         }
       : note,
@@ -9291,6 +9447,441 @@ function renderNoteListOnly() {
     String(second.updatedAt ?? "").localeCompare(String(first.updatedAt ?? "")),
   );
   notesList.innerHTML = sortedNotes.map(createNoteListItem).join("");
+}
+
+function handleNoteToolbarClick(event) {
+  const button = event.target.closest("[data-note-command]");
+  if (!button) return;
+
+  event.preventDefault();
+  focusNoteEditor();
+  document.execCommand(button.dataset.noteCommand, false, null);
+  saveActiveNoteFromEditor();
+}
+
+function applyNoteFont() {
+  const fontMap = {
+    system: "var(--app-font)",
+    serif: "Georgia, 'Times New Roman', serif",
+    mono: "'SFMono-Regular', Consolas, monospace",
+    rounded: "'Arial Rounded MT Bold', 'Avenir Next Rounded', var(--app-font)",
+  };
+  wrapNoteSelection("fontFamily", fontMap[noteFontSelect.value] || fontMap.system);
+}
+
+function applyNoteTextSize() {
+  wrapNoteSelection("fontSize", noteTextSizeSelect.value || "16px");
+}
+
+function wrapNoteSelection(styleProperty, styleValue) {
+  focusNoteEditor();
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+
+  const range = selection.getRangeAt(0);
+  const span = document.createElement("span");
+  span.style[styleProperty] = styleValue;
+
+  if (range.collapsed) {
+    span.append(document.createTextNode("\u200b"));
+    range.insertNode(span);
+    range.setStart(span.firstChild, 1);
+    range.collapse(true);
+  } else {
+    try {
+      span.append(range.extractContents());
+      range.insertNode(span);
+      range.selectNodeContents(span);
+      range.collapse(false);
+    } catch {
+      document.execCommand("fontSize", false, "4");
+    }
+  }
+
+  selection.removeAllRanges();
+  selection.addRange(range);
+  saveActiveNoteFromEditor();
+}
+
+function focusNoteEditor() {
+  try {
+    noteBodyEditor?.focus({ preventScroll: true });
+  } catch {
+    noteBodyEditor?.focus();
+  }
+}
+
+function handleNotePaste(event) {
+  event.preventDefault();
+  const text = event.clipboardData?.getData("text/plain") ?? "";
+  document.execCommand("insertText", false, text);
+}
+
+function toggleNoteSpeechToText() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    if (noteSavedStatus) noteSavedStatus.textContent = "Speech not available in this browser";
+    return;
+  }
+
+  if (noteSpeechListening && noteSpeechRecognition) {
+    noteSpeechRecognition.stop();
+    return;
+  }
+
+  noteSpeechRecognition = new SpeechRecognition();
+  noteSpeechRecognition.continuous = true;
+  noteSpeechRecognition.interimResults = true;
+  noteSpeechRecognition.lang = navigator.language || "en-AU";
+  noteSpeechListening = true;
+  noteSpeechButton?.classList.add("active");
+  if (noteSavedStatus) noteSavedStatus.textContent = "Listening...";
+
+  noteSpeechRecognition.addEventListener("result", (event) => {
+    let finalText = "";
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      if (event.results[index].isFinal) {
+        finalText += event.results[index][0].transcript;
+      }
+    }
+
+    if (!finalText.trim()) return;
+    focusNoteEditor();
+    document.execCommand("insertText", false, `${finalText.trim()} `);
+    saveActiveNoteFromEditor();
+  });
+
+  noteSpeechRecognition.addEventListener("end", () => {
+    noteSpeechListening = false;
+    noteSpeechButton?.classList.remove("active");
+    if (noteSavedStatus) noteSavedStatus.textContent = "Saved";
+  });
+
+  try {
+    noteSpeechRecognition.start();
+  } catch {
+    noteSpeechListening = false;
+    noteSpeechButton?.classList.remove("active");
+  }
+}
+
+function setNoteDrawingMode(mode) {
+  noteDrawingMode = mode === "eraser" ? "eraser" : mode === "pen" ? "pen" : "text";
+  noteTextModeButton?.classList.toggle("active", noteDrawingMode === "text");
+  notePenButton?.classList.toggle("active", noteDrawingMode === "pen");
+  noteEraserButton?.classList.toggle("active", noteDrawingMode === "eraser");
+  notePenPalette?.classList.toggle("hidden", noteDrawingMode !== "pen");
+  noteEraserOptions?.classList.toggle("hidden", noteDrawingMode !== "eraser");
+  noteDrawingCanvas?.classList.toggle("drawing-enabled", noteDrawingMode !== "text");
+  noteBodyEditor?.classList.toggle("drawing-disabled", noteDrawingMode !== "text");
+}
+
+function setNotePenPreset(preset, options = {}) {
+  if (!NOTE_PEN_PRESETS[preset]) return;
+
+  notePenPreset = preset;
+  const settings = NOTE_PEN_PRESETS[notePenPreset];
+  if (notePenColorInput) notePenColorInput.value = settings.color;
+  if (notePenSizeInput) notePenSizeInput.value = String(settings.size);
+  notePenPresetButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.notePenPreset === notePenPreset);
+  });
+  if (options.activatePen !== false) setNoteDrawingMode("pen");
+}
+
+function setNoteEraserMode(mode, options = {}) {
+  noteEraserMode = mode === "stroke" ? "stroke" : "pixel";
+  noteEraserModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.noteEraserMode === noteEraserMode);
+  });
+  if (options.activateEraser !== false) setNoteDrawingMode("eraser");
+}
+
+function startNoteDrawing(event) {
+  if (!noteDrawingCanvas || !getActiveNote() || noteDrawingMode === "text") return;
+
+  event.preventDefault();
+  const point = getCanvasPoint(event);
+  if (noteDrawingMode === "eraser" && noteEraserMode === "stroke") {
+    noteDrawingState = {
+      pointerId: event.pointerId,
+      strokeEraser: true,
+      dirty: eraseNoteStrokesAtPoint(point),
+      lastX: point.x,
+      lastY: point.y,
+    };
+    noteDrawingCanvas.setPointerCapture?.(event.pointerId);
+    return;
+  }
+
+  noteDrawingState = {
+    pointerId: event.pointerId,
+    currentStroke: createNoteDrawingStroke(point),
+    lastX: point.x,
+    lastY: point.y,
+  };
+  noteDrawingCanvas.setPointerCapture?.(event.pointerId);
+  drawNoteStroke(event);
+}
+
+function drawNoteStroke(event) {
+  if (!noteDrawingState || event.pointerId !== noteDrawingState.pointerId || !noteDrawingCanvas) return;
+
+  event.preventDefault();
+  const point = getCanvasPoint(event);
+  if (noteDrawingState.strokeEraser) {
+    noteDrawingState.dirty = eraseNoteStrokesAtPoint(point) || noteDrawingState.dirty;
+    noteDrawingState.lastX = point.x;
+    noteDrawingState.lastY = point.y;
+    return;
+  }
+
+  const context = noteDrawingCanvas.getContext("2d");
+  const stroke = noteDrawingState.currentStroke;
+  stroke.points.push(point);
+  drawNoteSegment(context, { x: noteDrawingState.lastX, y: noteDrawingState.lastY }, point, stroke);
+  noteDrawingState.lastX = point.x;
+  noteDrawingState.lastY = point.y;
+}
+
+function finishNoteDrawing(event) {
+  if (!noteDrawingState) return;
+  if (event?.pointerId !== undefined && event.pointerId !== noteDrawingState.pointerId) return;
+
+  try {
+    noteDrawingCanvas?.releasePointerCapture?.(noteDrawingState.pointerId);
+  } catch {
+    // Pointer capture may already be released.
+  }
+  const finishedStroke = noteDrawingState.currentStroke;
+  const shouldSave = Boolean(noteDrawingState.dirty || finishedStroke?.points?.length > 1);
+  if (finishedStroke?.points?.length > 1) {
+    appendNoteDrawingStroke(finishedStroke);
+  }
+  noteDrawingState = null;
+  if (shouldSave) saveActiveNoteDrawing();
+}
+
+function createNoteDrawingStroke(startPoint) {
+  const preset = NOTE_PEN_PRESETS[notePenPreset] ?? NOTE_PEN_PRESETS.pen;
+  const isPixelEraser = noteDrawingMode === "eraser";
+
+  return {
+    id: crypto.randomUUID(),
+    tool: isPixelEraser ? "eraser" : notePenPreset,
+    color: isPixelEraser ? "#000000" : notePenColorInput?.value || preset.color,
+    size: Math.max(Number(notePenSizeInput?.value) || preset.size, 1),
+    alpha: isPixelEraser ? 1 : preset.alpha,
+    canvasWidth: noteDrawingCanvas?.width || 1200,
+    canvasHeight: noteDrawingCanvas?.height || 850,
+    points: [startPoint],
+  };
+}
+
+function appendNoteDrawingStroke(stroke) {
+  const normalizedStroke = normalizeNoteDrawingStroke(stroke);
+  if (!normalizedStroke) return;
+
+  notes = notes.map((note) =>
+    note.id === activeNoteId
+      ? {
+          ...note,
+          drawingStrokes: [...(Array.isArray(note.drawingStrokes) ? note.drawingStrokes : []), normalizedStroke].slice(-600),
+          updatedAt: new Date().toISOString(),
+        }
+      : note,
+  );
+}
+
+function drawNoteSegment(context, fromPoint, toPoint, stroke) {
+  const tool = stroke.tool === "eraser" ? "eraser" : stroke.tool;
+  context.save();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(Number(stroke.size) || 5, 1);
+
+  if (tool === "eraser") {
+    context.globalCompositeOperation = "destination-out";
+    context.strokeStyle = "rgba(0, 0, 0, 1)";
+    context.globalAlpha = 1;
+    drawBasicNoteLine(context, fromPoint, toPoint);
+    context.restore();
+    return;
+  }
+
+  context.globalCompositeOperation = "source-over";
+  context.strokeStyle = stroke.color || NOTE_PEN_PRESETS.pen.color;
+  context.globalAlpha = Math.min(Math.max(Number(stroke.alpha) || 1, 0.1), 1);
+  drawBasicNoteLine(context, fromPoint, toPoint);
+
+  if (tool === "crayon") {
+    context.globalAlpha = 0.22;
+    context.lineWidth = Math.max(context.lineWidth * 0.38, 1);
+    drawBasicNoteLine(context, { x: fromPoint.x + 1.6, y: fromPoint.y - 1.2 }, { x: toPoint.x + 1.6, y: toPoint.y - 1.2 });
+    drawBasicNoteLine(context, { x: fromPoint.x - 1.3, y: fromPoint.y + 1.1 }, { x: toPoint.x - 1.3, y: toPoint.y + 1.1 });
+  }
+
+  context.restore();
+}
+
+function drawBasicNoteLine(context, fromPoint, toPoint) {
+  context.beginPath();
+  context.moveTo(fromPoint.x, fromPoint.y);
+  context.lineTo(toPoint.x, toPoint.y);
+  context.stroke();
+}
+
+function drawStoredNoteStroke(context, stroke) {
+  const points = getScaledNoteStrokePoints(stroke);
+  if (points.length < 2) return;
+
+  const scaleX = noteDrawingCanvas.width / (Number(stroke.canvasWidth) || noteDrawingCanvas.width);
+  const scaleY = noteDrawingCanvas.height / (Number(stroke.canvasHeight) || noteDrawingCanvas.height);
+  const scaledStroke = {
+    ...stroke,
+    size: (Number(stroke.size) || 5) * Math.max(scaleX, scaleY),
+  };
+  points.slice(1).forEach((point, index) => {
+    drawNoteSegment(context, points[index], point, scaledStroke);
+  });
+}
+
+function getScaledNoteStrokePoints(stroke) {
+  const sourceWidth = Number(stroke.canvasWidth) || noteDrawingCanvas?.width || 1;
+  const sourceHeight = Number(stroke.canvasHeight) || noteDrawingCanvas?.height || 1;
+  const scaleX = (noteDrawingCanvas?.width || sourceWidth) / sourceWidth;
+  const scaleY = (noteDrawingCanvas?.height || sourceHeight) / sourceHeight;
+
+  return (Array.isArray(stroke.points) ? stroke.points : []).map((point) => ({
+    x: Number(point.x) * scaleX,
+    y: Number(point.y) * scaleY,
+  }));
+}
+
+function eraseNoteStrokesAtPoint(point) {
+  const activeNote = getActiveNote();
+  if (!activeNote || !noteDrawingCanvas) return false;
+
+  const strokes = normalizeNoteDrawingStrokes(activeNote.drawingStrokes);
+  const radius = Math.max((Number(notePenSizeInput?.value) || 8) * 1.8, 14);
+  const remainingStrokes = strokes.filter((stroke) =>
+    stroke.tool === "eraser" || !isNoteStrokeNearPoint(stroke, point, radius),
+  );
+  if (remainingStrokes.length === strokes.length) return false;
+
+  notes = notes.map((note) =>
+    note.id === activeNote.id
+      ? { ...note, drawingStrokes: remainingStrokes, updatedAt: new Date().toISOString() }
+      : note,
+  );
+  renderActiveNoteDrawing();
+  return true;
+}
+
+function isNoteStrokeNearPoint(stroke, point, radius) {
+  const points = getScaledNoteStrokePoints(stroke);
+  if (points.length < 2) return false;
+
+  const strokeRadius = radius + (Number(stroke.size) || 5) / 2;
+  return points.slice(1).some((nextPoint, index) =>
+    distanceToNoteSegment(point, points[index], nextPoint) <= strokeRadius,
+  );
+}
+
+function distanceToNoteSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+  const closestX = start.x + t * dx;
+  const closestY = start.y + t * dy;
+  return Math.hypot(point.x - closestX, point.y - closestY);
+}
+
+function getCanvasPoint(event) {
+  const rect = noteDrawingCanvas.getBoundingClientRect();
+  const scaleX = noteDrawingCanvas.width / rect.width;
+  const scaleY = noteDrawingCanvas.height / rect.height;
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
+  };
+}
+
+function syncNoteCanvasSize() {
+  if (!noteDrawingCanvas) return;
+
+  const rect = notePage?.getBoundingClientRect();
+  const nextWidth = rect?.width > 20 ? Math.round(rect.width) : 1200;
+  const nextHeight = rect?.height > 20 ? Math.round(rect.height) : 850;
+  if (noteDrawingCanvas.width === nextWidth && noteDrawingCanvas.height === nextHeight) return;
+
+  noteDrawingCanvas.width = nextWidth;
+  noteDrawingCanvas.height = nextHeight;
+}
+
+function renderActiveNoteDrawing() {
+  if (!noteDrawingCanvas) return;
+
+  syncNoteCanvasSize();
+  const context = noteDrawingCanvas.getContext("2d");
+  context.clearRect(0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
+  const activeNote = getActiveNote();
+  if (!activeNote) return;
+
+  const drawingBaseDataUrl = activeNote.drawingBaseDataUrl || (!activeNote.drawingStrokes?.length ? activeNote.drawingDataUrl : "");
+  const renderStrokes = () => {
+    normalizeNoteDrawingStrokes(activeNote.drawingStrokes).forEach((stroke) => drawStoredNoteStroke(context, stroke));
+  };
+
+  if (!drawingBaseDataUrl) {
+    renderStrokes();
+    return;
+  }
+
+  const image = new Image();
+  image.addEventListener("load", () => {
+    context.clearRect(0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
+    context.drawImage(image, 0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
+    renderStrokes();
+  });
+  image.src = drawingBaseDataUrl;
+}
+
+function saveActiveNoteDrawing() {
+  const activeNote = getActiveNote();
+  if (!activeNote || !noteDrawingCanvas) return;
+
+  const drawingDataUrl = noteDrawingCanvas.toDataURL("image/png");
+  notes = notes.map((note) =>
+    note.id === activeNote.id
+      ? {
+          ...note,
+          drawingBaseDataUrl: note.drawingBaseDataUrl || "",
+          drawingDataUrl,
+          drawingStrokes: normalizeNoteDrawingStrokes(note.drawingStrokes),
+          updatedAt: new Date().toISOString(),
+        }
+      : note,
+  );
+  saveNotes();
+  renderNoteListOnly();
+  if (noteSavedStatus) noteSavedStatus.textContent = "Saved drawing";
+}
+
+function clearNoteDrawing() {
+  if (!noteDrawingCanvas || !getActiveNote()) return;
+
+  const context = noteDrawingCanvas.getContext("2d");
+  context.clearRect(0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
+  notes = notes.map((note) =>
+    note.id === activeNoteId
+      ? { ...note, drawingBaseDataUrl: "", drawingDataUrl: "", drawingStrokes: [], updatedAt: new Date().toISOString() }
+      : note,
+  );
+  saveNotes();
+  renderNoteListOnly();
 }
 
 function deleteActiveNote() {
@@ -9451,7 +10042,10 @@ function normalizeNotes(value) {
       return {
         id,
         title: normalizeNoteTitle(note?.title),
-        body: String(note?.body ?? "").slice(0, 16000),
+        body: normalizeNoteHTML(note?.body),
+        drawingBaseDataUrl: normalizeNoteDrawingDataUrl(note?.drawingBaseDataUrl || note?.drawingDataUrl),
+        drawingDataUrl: normalizeNoteDrawingDataUrl(note?.drawingDataUrl),
+        drawingStrokes: normalizeNoteDrawingStrokes(note?.drawingStrokes),
         createdAt,
         updatedAt,
       };
@@ -9462,6 +10056,105 @@ function normalizeNotes(value) {
 function normalizeNoteTitle(value) {
   const title = String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
   return title || "Untitled note";
+}
+
+function normalizeNoteHTML(value) {
+  const rawHTML = String(value ?? "").slice(0, 40000);
+  const looksLikeHTML = /<\/?[a-z][\s\S]*>/i.test(rawHTML);
+  const template = document.createElement("template");
+  template.innerHTML = looksLikeHTML ? rawHTML : plainTextToNoteHTML(rawHTML);
+  sanitizeNoteNode(template.content);
+  return template.innerHTML;
+}
+
+function sanitizeNoteNode(root) {
+  const allowedTags = new Set(["B", "STRONG", "I", "EM", "U", "BR", "DIV", "P", "SPAN", "UL", "OL", "LI"]);
+  [...root.querySelectorAll("*")].forEach((element) => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(document.createTextNode(element.textContent ?? ""));
+      return;
+    }
+
+    [...element.attributes].forEach((attribute) => {
+      if (attribute.name !== "style") {
+        element.removeAttribute(attribute.name);
+      }
+    });
+
+    const style = element.getAttribute("style");
+    if (style) {
+      element.setAttribute("style", sanitizeNoteStyle(style));
+      if (!element.getAttribute("style")) element.removeAttribute("style");
+    }
+  });
+}
+
+function sanitizeNoteStyle(style) {
+  return String(style)
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => /^(font-family|font-size|color|background-color|text-align)\s*:/i.test(part))
+    .join("; ");
+}
+
+function plainTextToNoteHTML(value) {
+  const lines = String(value ?? "").split(/\r?\n/);
+  return lines.length
+    ? lines.map((line) => `<div>${escapeHTML(line) || "<br>"}</div>`).join("")
+    : "";
+}
+
+function getNotePlainText(value) {
+  const template = document.createElement("template");
+  template.innerHTML = normalizeNoteHTML(value);
+  return (template.content.textContent ?? "").trim().replace(/\s+/g, " ");
+}
+
+function normalizeNoteDrawingDataUrl(value) {
+  const dataUrl = String(value ?? "");
+  return dataUrl.startsWith("data:image/png;base64,") && dataUrl.length < 3000000 ? dataUrl : "";
+}
+
+function normalizeNoteDrawingStrokes(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map(normalizeNoteDrawingStroke)
+    .filter(Boolean)
+    .slice(-600);
+}
+
+function normalizeNoteDrawingStroke(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const tool = ["pen", "highlighter", "crayon", "eraser"].includes(value.tool) ? value.tool : "pen";
+  const points = Array.isArray(value.points)
+    ? value.points
+        .map((point) => ({
+          x: Number(point?.x),
+          y: Number(point?.y),
+        }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+        .slice(0, 2000)
+    : [];
+  if (points.length < 2) return null;
+
+  const fallbackPreset = NOTE_PEN_PRESETS[tool] ?? NOTE_PEN_PRESETS.pen;
+  const size = Number(value.size);
+  const alpha = Number(value.alpha);
+  const canvasWidth = Number(value.canvasWidth);
+  const canvasHeight = Number(value.canvasHeight);
+
+  return {
+    id: String(value.id ?? "").trim() || crypto.randomUUID(),
+    tool,
+    color: /^#[0-9a-f]{6}$/i.test(String(value.color ?? "")) ? String(value.color) : fallbackPreset.color,
+    size: Number.isFinite(size) ? Math.min(Math.max(size, 1), 48) : fallbackPreset.size,
+    alpha: Number.isFinite(alpha) ? Math.min(Math.max(alpha, 0.1), 1) : fallbackPreset.alpha,
+    canvasWidth: Number.isFinite(canvasWidth) && canvasWidth > 0 ? Math.min(canvasWidth, 4000) : 1200,
+    canvasHeight: Number.isFinite(canvasHeight) && canvasHeight > 0 ? Math.min(canvasHeight, 4000) : 850,
+    points,
+  };
 }
 
 function isValidDateString(value) {

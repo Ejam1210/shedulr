@@ -288,6 +288,13 @@
               </span>
               <input type="checkbox" data-feature-toggle="taskReminders" />
             </label>
+            <label class="setting-toggle">
+              <span>
+                <strong>List timeline</strong>
+                <small>Show a current-time rail beside the Schedule list.</small>
+              </span>
+              <input type="checkbox" data-feature-toggle="listTimeline" />
+            </label>
           </div>
         </div>
       </aside>
@@ -670,16 +677,6 @@
           </aside>
 
           <section class="home-overview" aria-label="Today overview">
-            <section class="home-stats-panel" aria-label="Stats snapshot">
-              <div class="home-section-heading">
-                <div>
-                  <p class="eyebrow">Snapshot</p>
-                  <h2>Stats</h2>
-                </div>
-              </div>
-              <div class="home-stat-snapshots" id="homeStatsSnapshots"></div>
-            </section>
-
             <section class="home-week-panel" aria-label="This week">
               <div class="home-section-heading">
                 <div>
@@ -743,27 +740,57 @@
               <option value="week">Week</option>
               <option value="day">Day</option>
             </select>
-            <select id="scheduleFilter" class="view-only-list" aria-label="Filter schedule">
-              <option value="all">All tasks</option>
-              <option value="today" selected>Selected day</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="done">Completed</option>
-            </select>
-            <select id="scheduleTypeFilter" class="schedule-extra-filter" aria-label="Filter by type">
-              <option value="all">All types</option>
-            </select>
-            <select id="schedulePriorityFilter" class="schedule-extra-filter" aria-label="Filter by priority">
-              <option value="all">All priorities</option>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-            </select>
+            <button class="filter-toggle-button" id="scheduleFilterButton" type="button" aria-expanded="false">
+              Filters
+              <span id="scheduleFilterBadge" class="hidden">0</span>
+            </button>
             <div class="grid-zoom-controls" aria-label="Grid zoom controls">
               <button id="gridZoomOut" type="button" aria-label="Zoom grid out">-</button>
               <span id="gridZoomLevel">100%</span>
               <button id="gridZoomIn" type="button" aria-label="Zoom grid in">+</button>
             </div>
           </div>
+        </div>
+
+        <div class="schedule-filter-overlay hidden" id="scheduleFilterOverlay" aria-hidden="true">
+          <section class="schedule-filter-panel" role="dialog" aria-modal="true" aria-labelledby="scheduleFilterTitle">
+            <div class="schedule-filter-header">
+              <div>
+                <p class="eyebrow">Schedule</p>
+                <h3 id="scheduleFilterTitle">Filters</h3>
+              </div>
+              <button class="delete-x-button" id="closeScheduleFilterButton" type="button" aria-label="Close filters">x</button>
+            </div>
+            <div class="schedule-filter-groups">
+              <fieldset class="schedule-filter-group">
+                <legend>Type</legend>
+                <p>Leave empty to show every type.</p>
+                <div class="filter-toggle-grid" id="scheduleTypeFilterOptions"></div>
+              </fieldset>
+              <fieldset class="schedule-filter-group">
+                <legend>Priority</legend>
+                <p>Leave empty to show every priority.</p>
+                <div class="filter-toggle-grid">
+                  <label class="filter-toggle">
+                    <input type="checkbox" value="Low" data-schedule-priority-filter />
+                    <span>Low</span>
+                  </label>
+                  <label class="filter-toggle">
+                    <input type="checkbox" value="Medium" data-schedule-priority-filter />
+                    <span>Medium</span>
+                  </label>
+                  <label class="filter-toggle">
+                    <input type="checkbox" value="High" data-schedule-priority-filter />
+                    <span>High</span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+            <div class="schedule-filter-actions">
+              <button class="secondary-button ghost-button" id="clearScheduleFiltersButton" type="button">Clear</button>
+              <button class="primary-button" id="doneScheduleFiltersButton" type="button">Done</button>
+            </div>
+          </section>
         </div>
 
         <div class="overlap-alert" id="overlapAlert" role="status" aria-live="polite"></div>
@@ -804,7 +831,10 @@
           <p>Add your first task from the Home tab and it will appear here.</p>
         </div>
 
-        <div class="task-list" id="taskList"></div>
+        <div class="schedule-list-layout" id="scheduleListLayout">
+          <aside class="schedule-list-timeline hidden" id="scheduleListTimeline" aria-label="Current time on selected day"></aside>
+          <div class="task-list" id="taskList"></div>
+        </div>
         <div class="schedule-grid-view" id="scheduleGrid"></div>
       </section>
 
@@ -846,7 +876,127 @@
             </div>
             <div class="note-editor-fields hidden" id="noteEditorFields">
               <input id="noteTitleInput" type="text" maxlength="80" placeholder="Untitled note" aria-label="Note title" />
-              <textarea id="noteBodyInput" rows="16" placeholder="Start typing..." aria-label="Note body"></textarea>
+              <div class="note-toolbar note-ribbon" aria-label="Note tools">
+                <div class="note-ribbon-group" aria-label="Text formatting">
+                  <button class="note-icon-button note-format-button" type="button" data-note-command="bold" title="Bold" aria-label="Bold">B</button>
+                  <button class="note-icon-button note-format-button" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+                  <button class="note-icon-button note-format-button" type="button" data-note-command="underline" title="Underline" aria-label="Underline"><u>U</u></button>
+                  <button class="note-icon-button" type="button" data-note-command="insertUnorderedList" title="Bullet list" aria-label="Bullet list">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="6" cy="7" r="1.5"></circle>
+                      <circle cx="6" cy="12" r="1.5"></circle>
+                      <circle cx="6" cy="17" r="1.5"></circle>
+                      <path d="M10 7h8M10 12h8M10 17h8"></path>
+                    </svg>
+                  </button>
+                  <button class="note-icon-button" type="button" data-note-command="insertOrderedList" title="Numbered list" aria-label="Numbered list">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 8V5H5"></path>
+                      <path d="M4.8 14h2.4l-2.4 3h2.4"></path>
+                      <path d="M11 7h8M11 12h8M11 17h8"></path>
+                    </svg>
+                  </button>
+                  <select id="noteFontSelect" aria-label="Note font">
+                    <option value="system">System</option>
+                    <option value="serif">Serif</option>
+                    <option value="mono">Mono</option>
+                    <option value="rounded">Rounded</option>
+                  </select>
+                  <select id="noteTextSizeSelect" aria-label="Note text size">
+                    <option value="14px">Small</option>
+                    <option value="16px" selected>Regular</option>
+                    <option value="20px">Large</option>
+                    <option value="26px">Title</option>
+                  </select>
+                </div>
+                <div class="note-ribbon-group" aria-label="Drawing tools">
+                  <button class="note-icon-button" type="button" id="noteTextModeButton" title="Text mode" aria-label="Text mode">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 5h14M12 5v14M8 19h8"></path>
+                    </svg>
+                  </button>
+                  <button class="note-icon-button" type="button" id="notePenButton" title="Draw on note" aria-label="Draw on note">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"></path>
+                      <path d="M13.5 7.5l3 3"></path>
+                    </svg>
+                  </button>
+                  <div class="note-tool-palette hidden" id="notePenPalette" aria-label="Pen choices">
+                    <button class="note-pen-preset active" type="button" data-note-pen-preset="pen" title="Pen" aria-label="Pen">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"></path>
+                        <path d="M13.5 7.5l3 3"></path>
+                      </svg>
+                      <span style="--preset-color: #2e7d5b"></span>
+                    </button>
+                    <button class="note-pen-preset" type="button" data-note-pen-preset="highlighter" title="Highlighter" aria-label="Highlighter">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 18l8.5-8.5 3 3L8 21H5v-3Z"></path>
+                        <path d="M14 5l5 5"></path>
+                        <path d="M3 21h8"></path>
+                      </svg>
+                      <span style="--preset-color: #ffd166"></span>
+                    </button>
+                    <button class="note-pen-preset" type="button" data-note-pen-preset="crayon" title="Crayon" aria-label="Crayon">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 18 16.5 7.5l2 2L8 20H6v-2Z"></path>
+                        <path d="M13.8 5.8 18.2 10.2"></path>
+                        <path d="M5 14l5 5"></path>
+                      </svg>
+                      <span style="--preset-color: #7f5af0"></span>
+                    </button>
+                  </div>
+                  <button class="note-icon-button" type="button" id="noteEraserButton" title="Erase drawing" aria-label="Erase drawing">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 15 13 6a2.1 2.1 0 0 1 3 0l4 4a2.1 2.1 0 0 1 0 3l-7 7H8l-4-4a1.4 1.4 0 0 1 0-2Z"></path>
+                      <path d="M10 11l5 5"></path>
+                      <path d="M12 20h8"></path>
+                    </svg>
+                  </button>
+                  <div class="note-eraser-options hidden" id="noteEraserOptions" aria-label="Eraser type">
+                    <button class="note-icon-button active" type="button" data-note-eraser-mode="pixel" title="Pixel eraser" aria-label="Pixel eraser">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 16l8-8 4 4-8 8H6l-1-1v-3Z"></path>
+                        <path d="M15 6l3 3"></path>
+                        <path d="M4 21h16"></path>
+                      </svg>
+                    </button>
+                    <button class="note-icon-button" type="button" data-note-eraser-mode="stroke" title="Stroke eraser" aria-label="Stroke eraser">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 18c4-8 8 8 16-4"></path>
+                        <path d="M6 6l12 12"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <input id="notePenColor" type="color" value="#2e7d5b" aria-label="Pen colour" />
+                  <label>
+                    Size
+                    <input id="notePenSize" type="range" min="2" max="20" value="5" aria-label="Pen size" />
+                  </label>
+                  <button class="note-icon-button" type="button" id="noteClearDrawingButton" title="Clear drawing" aria-label="Clear drawing">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 7h12"></path>
+                      <path d="M9 7V5h6v2"></path>
+                      <path d="M8 10l1 10h6l1-10"></path>
+                      <path d="M10.5 12.5l3 3M13.5 12.5l-3 3"></path>
+                    </svg>
+                  </button>
+                </div>
+                <div class="note-ribbon-group" aria-label="Voice tools">
+                  <button class="note-icon-button" type="button" id="noteSpeechButton" title="Speech to text" aria-label="Speech to text">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Z"></path>
+                      <path d="M6 11a6 6 0 0 0 12 0"></path>
+                      <path d="M12 17v4"></path>
+                      <path d="M9 21h6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="note-page" id="notePage">
+                <div id="noteBodyEditor" class="note-body-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note body" data-placeholder="Start typing..."></div>
+                <canvas id="noteDrawingCanvas" width="1200" height="850" aria-label="Note drawing layer"></canvas>
+              </div>
               <div class="note-editor-footer">
                 <span id="noteSavedStatus">Saved</span>
                 <button class="danger-button delete-x-button" id="deleteNoteButton" type="button" aria-label="Delete note" title="Delete note">x</button>
