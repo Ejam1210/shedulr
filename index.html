@@ -427,6 +427,19 @@
               <textarea id="editTaskNotes" name="notes" rows="3"></textarea>
             </label>
 
+            <div class="meeting-link-field hidden" id="editTaskMeetingField">
+              <label>
+                Meeting app link
+                <input id="editTaskMeetingLink" name="meetingLink" type="url" inputmode="url" placeholder="https://teams.microsoft.com, https://zoom.us, https://webex.com..." />
+              </label>
+              <div class="meeting-presets" aria-label="Meeting app presets">
+                <button class="secondary-button" type="button" data-meeting-preset="teams" data-meeting-target="edit">Teams</button>
+                <button class="secondary-button" type="button" data-meeting-preset="zoom" data-meeting-target="edit">Zoom</button>
+                <button class="secondary-button" type="button" data-meeting-preset="webex" data-meeting-target="edit">Webex</button>
+                <button class="secondary-button" type="button" data-meeting-preset="meet" data-meeting-target="edit">Meet</button>
+              </div>
+            </div>
+
             <label>
               Invite people
               <input id="editTaskInviteEmails" name="inviteEmails" type="text" inputmode="email" autocomplete="off" placeholder="email or Shedulr name, comma separated" />
@@ -462,6 +475,10 @@
                 <label><input name="editRepeatDays" type="checkbox" value="6" /> Sat</label>
                 <label><input name="editRepeatDays" type="checkbox" value="0" /> Sun</label>
               </div>
+              <label class="repeat-end-field hidden" id="editRepeatEndField">
+                Repeat ends
+                <input id="editRepeatEndDate" name="repeatEndDate" type="date" />
+              </label>
             </fieldset>
 
             <div class="edit-actions">
@@ -551,6 +568,7 @@
                     <option value="Health">Health</option>
                     <option value="Errand">Errand</option>
                     <option value="Event">Event</option>
+                    <option value="Meeting">Meeting</option>
                     <option value="custom">Custom type...</option>
                   </select>
                   <input id="customTaskType" class="custom-type-input hidden" name="customType" type="text" maxlength="24" placeholder="New type name" />
@@ -569,6 +587,19 @@
                 Notes
                 <textarea id="taskNotes" name="notes" rows="4" placeholder="Add details, links, or anything you need to remember."></textarea>
               </label>
+
+              <div class="meeting-link-field hidden" id="taskMeetingField">
+                <label>
+                  Meeting app link
+                  <input id="taskMeetingLink" name="meetingLink" type="url" inputmode="url" placeholder="https://teams.microsoft.com, https://zoom.us, https://webex.com..." />
+                </label>
+                <div class="meeting-presets" aria-label="Meeting app presets">
+                  <button class="secondary-button" type="button" data-meeting-preset="teams" data-meeting-target="add">Teams</button>
+                  <button class="secondary-button" type="button" data-meeting-preset="zoom" data-meeting-target="add">Zoom</button>
+                  <button class="secondary-button" type="button" data-meeting-preset="webex" data-meeting-target="add">Webex</button>
+                  <button class="secondary-button" type="button" data-meeting-preset="meet" data-meeting-target="add">Meet</button>
+                </div>
+              </div>
 
               <label>
                 Invite people
@@ -605,6 +636,10 @@
                   <label><input name="repeatDays" type="checkbox" value="6" /> Sat</label>
                   <label><input name="repeatDays" type="checkbox" value="0" /> Sun</label>
                 </div>
+                <label class="repeat-end-field hidden" id="repeatEndField">
+                  Repeat ends
+                  <input id="taskRepeatEndDate" name="repeatEndDate" type="date" />
+                </label>
               </fieldset>
 
               <button class="primary-button" type="submit">Add to schedule</button>
@@ -696,6 +731,7 @@
             <div class="view-toggle" aria-label="Schedule view">
               <button class="view-button active" data-view="list" type="button">List</button>
               <button class="view-button" data-view="grid" type="button">Grid</button>
+              <button class="view-button" data-view="month" type="button">Month</button>
             </div>
             <div class="schedule-date-controls" aria-label="Schedule date navigation">
               <button id="schedulePrevDate" type="button" aria-label="Previous date">&lt;</button>
@@ -713,6 +749,15 @@
               <option value="upcoming">Upcoming</option>
               <option value="done">Completed</option>
             </select>
+            <select id="scheduleTypeFilter" class="schedule-extra-filter" aria-label="Filter by type">
+              <option value="all">All types</option>
+            </select>
+            <select id="schedulePriorityFilter" class="schedule-extra-filter" aria-label="Filter by priority">
+              <option value="all">All priorities</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
             <div class="grid-zoom-controls" aria-label="Grid zoom controls">
               <button id="gridZoomOut" type="button" aria-label="Zoom grid out">-</button>
               <span id="gridZoomLevel">100%</span>
@@ -723,6 +768,14 @@
 
         <div class="overlap-alert" id="overlapAlert" role="status" aria-live="polite"></div>
 
+        <section class="selection-toolbar hidden" id="taskSelectionToolbar" aria-label="Selected task actions">
+          <strong id="taskSelectionCount">0 selected</strong>
+          <button class="secondary-button" id="selectAllTasksButton" type="button">Select all</button>
+          <button class="secondary-button" id="duplicateSelectedTasksButton" type="button">Duplicate</button>
+          <button class="danger-button" id="deleteSelectedTasksButton" type="button">Delete</button>
+          <button class="secondary-button ghost-button" id="clearSelectedTasksButton" type="button">Clear</button>
+        </section>
+
         <section class="missed-panel hidden" id="missedTasksPanel" aria-label="Missed tasks">
           <div class="missed-panel-header">
             <div>
@@ -731,6 +784,18 @@
             </div>
             <button class="secondary-button compact-button" id="collapseMissedButton" type="button">Collapse</button>
           </div>
+          <section class="selection-toolbar missed-selection-toolbar hidden" id="missedSelectionToolbar" aria-label="Selected missed task actions">
+            <strong id="missedSelectionCount">0 selected</strong>
+            <button class="secondary-button" id="selectAllMissedButton" type="button">Select all</button>
+            <label class="missed-date-action">
+              Set back to
+              <input id="missedRescheduleDate" type="date" />
+            </label>
+            <button class="secondary-button" id="rescheduleSelectedMissedButton" type="button">Set date</button>
+            <button class="secondary-button" id="ignoreSelectedMissedButton" type="button">Ignore</button>
+            <button class="danger-button" id="deleteSelectedMissedButton" type="button">Delete</button>
+            <button class="secondary-button ghost-button" id="clearSelectedMissedButton" type="button">Clear</button>
+          </section>
           <div class="missed-task-list" id="missedTaskList"></div>
         </section>
 
@@ -761,6 +826,34 @@
         </div>
 
         <div class="task-list" id="completedTaskList"></div>
+      </section>
+
+      <section class="tab-panel" id="notesPanel" aria-labelledby="Notes">
+        <div class="schedule-header">
+          <div>
+            <h2>Notes</h2>
+            <p>Quickly jot things down and come back to them later.</p>
+          </div>
+          <button class="primary-button" id="newNoteButton" type="button">New note</button>
+        </div>
+
+        <section class="notes-layout" aria-label="Notes workspace">
+          <aside class="notes-sidebar" id="notesList" aria-label="Saved notes"></aside>
+          <section class="note-editor" id="noteEditor" aria-label="Note editor">
+            <div class="notes-empty-state" id="notesEmptyState">
+              <h3>No note selected</h3>
+              <p>Create a note to start writing.</p>
+            </div>
+            <div class="note-editor-fields hidden" id="noteEditorFields">
+              <input id="noteTitleInput" type="text" maxlength="80" placeholder="Untitled note" aria-label="Note title" />
+              <textarea id="noteBodyInput" rows="16" placeholder="Start typing..." aria-label="Note body"></textarea>
+              <div class="note-editor-footer">
+                <span id="noteSavedStatus">Saved</span>
+                <button class="danger-button delete-x-button" id="deleteNoteButton" type="button" aria-label="Delete note" title="Delete note">x</button>
+              </div>
+            </div>
+          </section>
+        </section>
       </section>
 
       <section class="tab-panel" id="statsPanel" aria-labelledby="Stats">
@@ -836,6 +929,13 @@
           </svg>
           <span class="tab-label">Done</span>
           <span class="tab-count" id="completedCount">0</span>
+        </button>
+        <button class="tab-button" data-tab="notes" type="button" aria-label="Notes">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 4h12a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"></path>
+            <path d="M8 8h8M8 12h8M8 16h5"></path>
+          </svg>
+          <span class="tab-label">Notes</span>
         </button>
         <button class="tab-button" data-tab="stats" type="button" aria-label="Stats">
           <svg viewBox="0 0 24 24" aria-hidden="true">

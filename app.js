@@ -18,6 +18,7 @@ const HOME_WIDGET_LAYOUT_STORAGE_KEY = "daily-task-scheduler.home-widget-layout"
 const STARTUP_QUOTE_STORAGE_KEY = "daily-task-scheduler.startup-quote";
 const FRIENDS_STORAGE_KEY = "daily-task-scheduler.friends";
 const SHARE_SETTINGS_STORAGE_KEY = "daily-task-scheduler.share-settings";
+const NOTES_STORAGE_KEY = "daily-task-scheduler.notes";
 const SUPABASE_URL = "https://xaacjrtkzvphztifnywm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhYWNqcnRrenZwaHp0aWZueXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDA4NzcsImV4cCI6MjA5NTg3Njg3N30.mTBCPN4JiVDWQVVxBXyFE67vJ3i8A4JoW8mpUO1wDfo";
 const APP_AUTH_REDIRECT_URL = "https://ejam1210.github.io/Task-scheduling-app/";
@@ -38,6 +39,7 @@ const PROFILE_SCOPED_STORAGE_KEYS = [
   HOME_WIDGET_LAYOUT_STORAGE_KEY,
   FRIENDS_STORAGE_KEY,
   SHARE_SETTINGS_STORAGE_KEY,
+  NOTES_STORAGE_KEY,
 ];
 const SCHEDULE_DAYS_TO_SHOW = 30;
 const GRID_MINUTE_HEIGHT = 2.05;
@@ -62,7 +64,7 @@ const HOME_WIDGET_SNAP_SIZE = 24;
 const HOME_WIDGET_ROW_HEIGHT = 168;
 const HOME_WIDGET_DESKTOP_QUERY = "(min-width: 761px) and (pointer: fine)";
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const BUILT_IN_TASK_TYPES = ["Focus", "Personal", "Study", "Health", "Errand", "Event"];
+const BUILT_IN_TASK_TYPES = ["Focus", "Personal", "Study", "Health", "Errand", "Event", "Meeting"];
 const PRIORITY_LEVELS = ["Low", "Medium", "High"];
 const HOME_WIDGET_DEFINITIONS = [
   { id: "stats", label: "Stats" },
@@ -177,7 +179,11 @@ const repeatModeField = document.querySelector("#repeatModeField");
 const taskRepeatModeInput = document.querySelector("#taskRepeatMode");
 const repeatIntervalField = document.querySelector("#repeatIntervalField");
 const taskRepeatIntervalDaysInput = document.querySelector("#taskRepeatIntervalDays");
+const repeatEndField = document.querySelector("#repeatEndField");
+const taskRepeatEndDateInput = document.querySelector("#taskRepeatEndDate");
 const weekdayPicker = document.querySelector("#weekdayPicker");
+const taskMeetingField = document.querySelector("#taskMeetingField");
+const taskMeetingLinkInput = document.querySelector("#taskMeetingLink");
 const profileButton = document.querySelector("#profileButton");
 const profileAvatar = document.querySelector("#profileAvatar");
 const profileAvatarLarge = document.querySelector("#profileAvatarLarge");
@@ -277,6 +283,7 @@ const editTaskTimerModeField = document.querySelector("#editTaskTimerModeField")
 const editTaskTypeInput = document.querySelector("#editTaskType");
 const editTaskPriorityInput = document.querySelector("#editTaskPriority");
 const editTaskNotesInput = document.querySelector("#editTaskNotes");
+const editTaskMeetingLinkInput = document.querySelector("#editTaskMeetingLink");
 const editTaskInviteEmailsInput = document.querySelector("#editTaskInviteEmails");
 const editTaskRepeatsInput = document.querySelector("#editTaskRepeats");
 const editRepeatToggleText = document.querySelector("#editRepeatToggleText");
@@ -284,7 +291,35 @@ const editRepeatModeField = document.querySelector("#editRepeatModeField");
 const editRepeatModeInput = document.querySelector("#editRepeatMode");
 const editRepeatIntervalField = document.querySelector("#editRepeatIntervalField");
 const editRepeatIntervalDaysInput = document.querySelector("#editRepeatIntervalDays");
+const editRepeatEndField = document.querySelector("#editRepeatEndField");
+const editRepeatEndDateInput = document.querySelector("#editRepeatEndDate");
 const editWeekdayPicker = document.querySelector("#editWeekdayPicker");
+const editTaskMeetingField = document.querySelector("#editTaskMeetingField");
+const scheduleTypeFilter = document.querySelector("#scheduleTypeFilter");
+const schedulePriorityFilter = document.querySelector("#schedulePriorityFilter");
+const taskSelectionToolbar = document.querySelector("#taskSelectionToolbar");
+const taskSelectionCount = document.querySelector("#taskSelectionCount");
+const selectAllTasksButton = document.querySelector("#selectAllTasksButton");
+const duplicateSelectedTasksButton = document.querySelector("#duplicateSelectedTasksButton");
+const deleteSelectedTasksButton = document.querySelector("#deleteSelectedTasksButton");
+const clearSelectedTasksButton = document.querySelector("#clearSelectedTasksButton");
+const missedSelectionToolbar = document.querySelector("#missedSelectionToolbar");
+const missedSelectionCount = document.querySelector("#missedSelectionCount");
+const selectAllMissedButton = document.querySelector("#selectAllMissedButton");
+const missedRescheduleDateInput = document.querySelector("#missedRescheduleDate");
+const rescheduleSelectedMissedButton = document.querySelector("#rescheduleSelectedMissedButton");
+const ignoreSelectedMissedButton = document.querySelector("#ignoreSelectedMissedButton");
+const deleteSelectedMissedButton = document.querySelector("#deleteSelectedMissedButton");
+const clearSelectedMissedButton = document.querySelector("#clearSelectedMissedButton");
+const notesList = document.querySelector("#notesList");
+const newNoteButton = document.querySelector("#newNoteButton");
+const noteEditor = document.querySelector("#noteEditor");
+const notesEmptyState = document.querySelector("#notesEmptyState");
+const noteEditorFields = document.querySelector("#noteEditorFields");
+const noteTitleInput = document.querySelector("#noteTitleInput");
+const noteBodyInput = document.querySelector("#noteBodyInput");
+const noteSavedStatus = document.querySelector("#noteSavedStatus");
+const deleteNoteButton = document.querySelector("#deleteNoteButton");
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) ?? null;
 const cancelEditTaskButton = document.querySelector("#cancelEditTask");
 const deleteEditedTaskButton = document.querySelector("#deleteEditedTaskButton");
@@ -302,6 +337,8 @@ let customTaskTypes = mergeCustomTaskTypes(loadCustomTaskTypes(), tasks.map((tas
 let weeklyGoals = loadWeeklyGoals();
 let homeWidgets = loadHomeWidgets();
 let homeWidgetLayout = loadHomeWidgetLayout();
+let notes = loadNotes();
+let activeNoteId = notes[0]?.id ?? "";
 let featureSettings;
 let taskTemplates = loadTaskTemplates();
 let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) ?? "light";
@@ -350,6 +387,11 @@ let friends = [];
 let shareSettings = { gridPublic: false, activityPublic: true };
 let isLoadingFriends = false;
 let renderedFriendShareUrl = "";
+let selectedTaskKeys = new Set();
+let selectedMissedKeys = new Set();
+let currentVisibleTaskKeys = [];
+let currentVisibleMissedKeys = [];
+let monthPointerState = null;
 
 const TASK_TYPE_STYLES = {
   Focus: { color: "#2d6f9f", bg: "rgba(45, 111, 159, 0.14)" },
@@ -358,6 +400,14 @@ const TASK_TYPE_STYLES = {
   Health: { color: "#c95f4f", bg: "rgba(201, 95, 79, 0.14)" },
   Errand: { color: "#b2832f", bg: "rgba(178, 131, 47, 0.16)" },
   Event: { color: "#3c7f88", bg: "rgba(60, 127, 136, 0.16)" },
+  Meeting: { color: "#5468b8", bg: "rgba(84, 104, 184, 0.16)" },
+};
+
+const MEETING_PRESET_LINKS = {
+  teams: "https://teams.microsoft.com/",
+  zoom: "https://zoom.us/join",
+  webex: "https://signin.webex.com/join",
+  meet: "https://meet.google.com/",
 };
 
 const DEFAULT_FEATURE_SETTINGS = {
@@ -477,7 +527,9 @@ applyStartupQuote();
 saveCustomTaskTypes();
 renderProfileControls();
 renderTaskTypeOptions();
+renderScheduleTypeFilter();
 renderTaskTemplateOptions();
+renderNotes();
 applyWeeklyGoalsToControls();
 applyFeatureSettingsToControls();
 applyTheme(currentTheme);
@@ -536,6 +588,8 @@ scheduleViewButtons.forEach((button) => {
 
 scheduleFilter.addEventListener("change", render);
 scheduleGridRange.addEventListener("change", render);
+scheduleTypeFilter?.addEventListener("change", render);
+schedulePriorityFilter?.addEventListener("change", render);
 scheduleDatePicker.addEventListener("change", () => setScheduleAnchorDate(scheduleDatePicker.value));
 schedulePrevDateButton.addEventListener("click", () => shiftScheduleAnchorDate(-getScheduleNavigationStep()));
 scheduleNextDateButton.addEventListener("click", () => shiftScheduleAnchorDate(getScheduleNavigationStep()));
@@ -562,6 +616,28 @@ homeDayGrid?.addEventListener("wheel", handleHomeGridZoom, { passive: false });
 homeDayGrid?.addEventListener("touchstart", handleHomeGridTouchStart, { passive: false });
 homeDayGrid?.addEventListener("touchmove", handleHomeGridTouchMove, { passive: false });
 homeDayGrid?.addEventListener("touchend", resetHomeGridPinch);
+selectAllTasksButton?.addEventListener("click", selectAllVisibleTasks);
+duplicateSelectedTasksButton?.addEventListener("click", duplicateSelectedTasks);
+deleteSelectedTasksButton?.addEventListener("click", deleteSelectedTasks);
+clearSelectedTasksButton?.addEventListener("click", () => {
+  selectedTaskKeys = new Set();
+  renderSelectionToolbars();
+  renderTaskSelectionState();
+});
+selectAllMissedButton?.addEventListener("click", selectAllVisibleMissedTasks);
+rescheduleSelectedMissedButton?.addEventListener("click", rescheduleSelectedMissedTasks);
+ignoreSelectedMissedButton?.addEventListener("click", ignoreSelectedMissedTasks);
+deleteSelectedMissedButton?.addEventListener("click", deleteSelectedMissedTasks);
+clearSelectedMissedButton?.addEventListener("click", () => {
+  selectedMissedKeys = new Set();
+  renderSelectionToolbars();
+  renderMissedSelectionState();
+});
+newNoteButton?.addEventListener("click", createNote);
+notesList?.addEventListener("click", handleNotesListClick);
+noteTitleInput?.addEventListener("input", saveActiveNoteFromEditor);
+noteBodyInput?.addEventListener("input", saveActiveNoteFromEditor);
+deleteNoteButton?.addEventListener("click", deleteActiveNote);
 taskItemKindInput.addEventListener("change", toggleItemKindFields);
 taskTimerModeInput.addEventListener("change", toggleItemKindFields);
 [taskDurationHoursInput, taskDurationMinutesInput].forEach((input) => {
@@ -574,7 +650,11 @@ taskRepeatModeInput.addEventListener("change", () => {
     setRepeatDayForDate(taskDateInput.value);
   }
 });
-taskTypeInput.addEventListener("change", toggleCustomTypeInput);
+taskTypeInput.addEventListener("change", handleTaskTypeChange);
+customTaskTypeInput.addEventListener("input", updateMeetingLinkControls);
+document.querySelectorAll("[data-meeting-preset]").forEach((button) => {
+  button.addEventListener("click", applyMeetingPreset);
+});
 taskTemplateSelect.addEventListener("change", applySelectedTaskTemplate);
 saveTemplateButton.addEventListener("click", saveCurrentTaskTemplate);
 taskFormHeader?.addEventListener("click", toggleTaskFormFromHeader);
@@ -605,6 +685,7 @@ function openScheduleTaskFormFromHome() {
 
 editItemKindInput.addEventListener("change", toggleEditItemKindFields);
 editTaskTimerModeInput.addEventListener("change", toggleEditItemKindFields);
+editTaskTypeInput.addEventListener("input", updateEditMeetingLinkControls);
 [editTaskDurationHoursInput, editTaskDurationMinutesInput].forEach((input) => {
   input?.addEventListener("input", () => syncDurationDialValue(editTaskDurationInput, editTaskDurationHoursInput, editTaskDurationMinutesInput));
   input?.addEventListener("change", () => syncDurationDialValue(editTaskDurationInput, editTaskDurationHoursInput, editTaskDurationMinutesInput, true));
@@ -719,6 +800,7 @@ taskForm.addEventListener("submit", (event) => {
   const repeatIntervalDays = repeats && repeatMode === "interval"
     ? normalizeRepeatIntervalDays(formData.get("repeatIntervalDays"))
     : 1;
+  const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(formData.get("repeatEndDate"), startDate) : "";
   const task = {
     id: crypto.randomUUID(),
     itemKind,
@@ -731,9 +813,11 @@ taskForm.addEventListener("submit", (event) => {
     type: taskType,
     priority: normalizePriority(formData.get("priority")),
     notes: formData.get("notes").trim(),
+    meetingLink: isMeetingType(taskType) ? normalizeMeetingLink(formData.get("meetingLink")) : "",
     repeats,
     repeatMode,
     repeatIntervalDays,
+    repeatEndDate,
     repeatDays: repeats ? selectedRepeatDays : [],
     completedDates: [],
     inviteEmails,
@@ -831,24 +915,28 @@ taskList.addEventListener("lostpointercapture", cancelTaskSwipe);
 window.addEventListener("pointermove", updateTaskSwipe, { passive: false });
 window.addEventListener("pointerup", finishTaskSwipe);
 window.addEventListener("pointercancel", cancelTaskSwipe);
-taskList.addEventListener("pointerdown", startHoldToEdit);
-taskList.addEventListener("pointerup", clearHoldToEdit);
+taskList.addEventListener("click", handleTaskSelectionClick);
 taskList.addEventListener("pointerup", handleTaskDoubleTap);
 taskList.addEventListener("pointerleave", () => {
-  clearHoldToEdit();
   cancelInactiveTaskSwipe();
 });
 taskList.addEventListener("pointercancel", () => {
-  clearHoldToEdit();
   cancelTaskSwipe();
 });
 
 scheduleGrid.addEventListener("pointerdown", startGridTaskMove);
 scheduleGrid.addEventListener("pointermove", updateGridTaskMove);
 scheduleGrid.addEventListener("pointerup", finishGridTaskMove);
+scheduleGrid.addEventListener("pointerdown", startMonthDayPointer);
+scheduleGrid.addEventListener("pointerup", finishMonthDayPointer);
+scheduleGrid.addEventListener("click", handleTaskSelectionClick);
 scheduleGrid.addEventListener("pointerup", handleTaskDoubleTap);
 scheduleGrid.addEventListener("pointercancel", cancelGridTaskMove);
-scheduleGrid.addEventListener("pointerleave", cancelInactiveGridTaskMove);
+scheduleGrid.addEventListener("pointercancel", cancelMonthDayPointer);
+scheduleGrid.addEventListener("pointerleave", (event) => {
+  cancelInactiveGridTaskMove(event);
+  cancelMonthDayPointer(event);
+});
 
 [taskList, scheduleGrid].forEach((container) => {
   container.addEventListener("contextmenu", (event) => {
@@ -887,6 +975,7 @@ missedTaskList.addEventListener("click", (event) => {
   saveTasks();
   render();
 });
+missedTaskList.addEventListener("click", handleTaskSelectionClick);
 
 editTaskForm.addEventListener("submit", saveEditedTask);
 cancelEditTaskButton.addEventListener("click", closeEditTask);
@@ -1002,6 +1091,7 @@ function switchTab(tabName) {
   document.querySelector("#homePanel").classList.toggle("active", tabName === "home");
   document.querySelector("#schedulePanel").classList.toggle("active", tabName === "schedule");
   document.querySelector("#completedPanel").classList.toggle("active", tabName === "completed");
+  document.querySelector("#notesPanel").classList.toggle("active", tabName === "notes");
   document.querySelector("#statsPanel").classList.toggle("active", tabName === "stats");
 }
 
@@ -1010,6 +1100,9 @@ function render() {
   const occurrences = buildScheduleOccurrences();
   const visibleOccurrences = occurrences.filter(matchesCurrentFilter);
   const gridOccurrences = getGridOccurrences(occurrences);
+  const scheduleDisplayOccurrences = scheduleView === "month"
+    ? getMonthOccurrences(occurrences)
+    : gridOccurrences;
   const completedToday = occurrences.filter(
     (task) => task.occurrenceDate === todayISO && task.done,
   );
@@ -1025,6 +1118,7 @@ function render() {
   renderTodaySummary(occurrences);
   renderHomeDashboard(occurrences, completedHistory);
   renderMissedTasks();
+  renderScheduleTypeFilter();
   renderFocusOverlay(occurrences);
   applyFeatureVisibility();
   reminderOccurrences = occurrences;
@@ -1037,16 +1131,22 @@ function render() {
   });
   scheduleDatePicker.value = scheduleAnchorDate;
   scheduleControls.classList.toggle("grid-mode", scheduleView === "grid");
+  scheduleControls.classList.toggle("month-mode", scheduleView === "month");
   updateScheduleGridZoomControls();
   ensureTimerInterval();
 
   taskList.innerHTML = visibleOccurrences.map(createTaskCard).join("");
-  scheduleGrid.innerHTML = createScheduleGrid(gridOccurrences);
+  scheduleGrid.innerHTML = createScheduleDisplay(scheduleDisplayOccurrences);
   updateTimerDisplay();
   taskList.classList.toggle("hidden", scheduleView !== "list");
-  scheduleGrid.classList.toggle("active", scheduleView === "grid");
+  scheduleGrid.classList.toggle("active", scheduleView !== "list");
+  scheduleGrid.classList.toggle("month-mode", scheduleView === "month");
   emptyState.classList.toggle("visible", scheduleView === "list" && visibleOccurrences.length === 0);
-  renderOverlapAlert(scheduleView === "grid" ? gridOccurrences : visibleOccurrences);
+  if (scheduleView === "month") selectedTaskKeys = new Set();
+  updateVisibleTaskSelectionKeys(scheduleView === "list" ? visibleOccurrences : scheduleDisplayOccurrences);
+  renderTaskSelectionState();
+  renderSelectionToolbars();
+  renderOverlapAlert(scheduleView === "month" ? [] : scheduleView === "grid" ? scheduleDisplayOccurrences : visibleOccurrences);
   completedTaskList.innerHTML = completedToday.map(createCompletedTaskCard).join("");
   completedEmptyState.classList.toggle("visible", completedToday.length === 0);
   weeklyReport.innerHTML = createWeeklyReport(completedHistory);
@@ -1085,9 +1185,10 @@ function getScheduleOccurrenceWindow() {
   const todayStart = startOfToday(today);
   const anchor = parseISODate(scheduleAnchorDate);
   const range = scheduleView === "grid" ? getGridDateRange() : { start: anchor, end: anchor };
+  const monthRange = scheduleView === "month" ? getMonthDateRange(scheduleAnchorDate) : { start: anchor, end: anchor };
   const homeRange = getGridDateRange({ anchorDate: homeGridAnchorDate || todayISO, range: homeGridRange });
-  const earliest = minDate(todayStart, range.start, homeRange.start, addDays(anchor, -7));
-  const latest = maxDate(addDays(todayStart, SCHEDULE_DAYS_TO_SHOW), range.end, homeRange.end, addDays(anchor, SCHEDULE_DAYS_TO_SHOW));
+  const earliest = minDate(todayStart, range.start, monthRange.start, homeRange.start, addDays(anchor, -7));
+  const latest = maxDate(addDays(todayStart, SCHEDULE_DAYS_TO_SHOW), range.end, monthRange.end, homeRange.end, addDays(anchor, SCHEDULE_DAYS_TO_SHOW));
 
   return { start: earliest, end: latest };
 }
@@ -1127,6 +1228,8 @@ function buildMissedOccurrences() {
 function doesTaskRepeatOnDate(task, day) {
   const taskStart = parseISODate(task.date);
   if (day < taskStart) return false;
+  const repeatEndDate = normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date);
+  if (repeatEndDate && day > parseISODate(repeatEndDate)) return false;
   const repeatDays = normalizeRepeatDays(task.repeatDays);
   const matchesWeeklyDay = repeatDays.includes(day.getDay());
 
@@ -2393,6 +2496,7 @@ function toggleRepeatControls() {
   repeatModeField.classList.toggle("hidden", !repeats);
   weekdayPicker.classList.toggle("hidden", !repeats);
   repeatIntervalField.classList.toggle("hidden", !repeats || repeatMode !== "interval");
+  repeatEndField?.classList.toggle("hidden", !repeats);
   taskRepeatIntervalDaysInput.toggleAttribute("required", repeats && repeatMode === "interval");
 }
 
@@ -2405,6 +2509,7 @@ function toggleEditRepeatControls() {
   editRepeatModeField.classList.toggle("hidden", !repeats);
   editWeekdayPicker.classList.toggle("hidden", !repeats);
   editRepeatIntervalField.classList.toggle("hidden", !repeats || repeatMode !== "interval");
+  editRepeatEndField?.classList.toggle("hidden", !repeats);
   editRepeatIntervalDaysInput.toggleAttribute("required", repeats && repeatMode === "interval");
 }
 
@@ -2814,6 +2919,7 @@ function clearHoldToEdit() {
 }
 
 function handleTaskDoubleTap(event) {
+  if (event.shiftKey) return;
   if (event.button !== undefined && event.button !== 0) return;
   if (event.target.closest("button, input, select, textarea, a")) return;
   if (Date.now() < suppressTaskTapUntil) return;
@@ -2860,6 +2966,196 @@ function handleTaskDoubleTap(event) {
 
   lastTaskTap = null;
   openEditTask(taskCard.dataset.taskId, taskCard.dataset.occurrenceDate);
+}
+
+function handleTaskSelectionClick(event) {
+  if (!event.shiftKey) return;
+  if (event.target.closest("button, input, select, textarea, a")) return;
+  if (Date.now() < suppressTaskTapUntil) return;
+
+  const taskCard = event.target.closest(".task-card[data-task-id][data-occurrence-date], .timeline-task[data-task-id][data-occurrence-date]");
+  if (taskCard) {
+    event.preventDefault();
+    lastTaskTap = null;
+    const key = createCardOccurrenceKey(taskCard);
+    if (!key) return;
+    selectedTaskKeys = toggleSelectionKey(selectedTaskKeys, key);
+    renderTaskSelectionState();
+    renderSelectionToolbars();
+    return;
+  }
+
+  const missedCard = event.target.closest(".missed-task-card[data-task-id][data-occurrence-date]");
+  if (missedCard) {
+    event.preventDefault();
+    lastTaskTap = null;
+    const key = createCardOccurrenceKey(missedCard);
+    if (!key) return;
+    selectedMissedKeys = toggleSelectionKey(selectedMissedKeys, key);
+    renderMissedSelectionState();
+    renderSelectionToolbars();
+  }
+}
+
+function isDesktopSelectionDevice() {
+  return window.matchMedia?.("(pointer: fine)")?.matches ?? false;
+}
+
+function toggleSelectionKey(selection, key) {
+  const nextSelection = new Set(selection);
+  if (nextSelection.has(key)) {
+    nextSelection.delete(key);
+  } else {
+    nextSelection.add(key);
+  }
+  return nextSelection;
+}
+
+function createCardOccurrenceKey(card) {
+  return createTaskSelectionKey(card.dataset.taskId, card.dataset.occurrenceDate);
+}
+
+function createOccurrenceKey(task) {
+  return createTaskSelectionKey(task.id, task.occurrenceDate);
+}
+
+function createTaskSelectionKey(taskId, occurrenceDate) {
+  return taskId && occurrenceDate ? `${taskId}::${occurrenceDate}` : "";
+}
+
+function parseTaskSelectionKey(key) {
+  const [taskId, occurrenceDate] = String(key).split("::");
+  return { taskId, occurrenceDate };
+}
+
+function updateVisibleTaskSelectionKeys(occurrences) {
+  currentVisibleTaskKeys = occurrences.map(createOccurrenceKey);
+  selectedTaskKeys = pruneSelectionToVisible(selectedTaskKeys, currentVisibleTaskKeys);
+}
+
+function pruneSelectionToVisible(selection, visibleKeys) {
+  const visibleKeySet = new Set(visibleKeys);
+  return new Set([...selection].filter((key) => visibleKeySet.has(key)));
+}
+
+function renderTaskSelectionState() {
+  document.querySelectorAll(".task-card[data-task-id][data-occurrence-date], .timeline-task[data-task-id][data-occurrence-date]").forEach((card) => {
+    card.classList.toggle("selected", selectedTaskKeys.has(createCardOccurrenceKey(card)));
+  });
+}
+
+function renderMissedSelectionState() {
+  document.querySelectorAll(".missed-task-card[data-task-id][data-occurrence-date]").forEach((card) => {
+    card.classList.toggle("selected", selectedMissedKeys.has(createCardOccurrenceKey(card)));
+  });
+}
+
+function renderSelectionToolbars() {
+  const showDesktopTools = isDesktopSelectionDevice();
+  const taskCount = selectedTaskKeys.size;
+  const missedCount = selectedMissedKeys.size;
+  const showTaskToolbar = (showDesktopTools || taskCount > 0) && scheduleView !== "month" && currentVisibleTaskKeys.length > 0;
+  const showMissedToolbar = (showDesktopTools || missedCount > 0) && currentVisibleMissedKeys.length > 0 && !missedTasksCollapsed;
+
+  taskSelectionToolbar?.classList.toggle("hidden", !showTaskToolbar);
+  if (taskSelectionCount) {
+    taskSelectionCount.textContent = `${taskCount} selected`;
+  }
+  if (duplicateSelectedTasksButton) duplicateSelectedTasksButton.disabled = taskCount === 0;
+  if (deleteSelectedTasksButton) deleteSelectedTasksButton.disabled = taskCount === 0;
+  if (clearSelectedTasksButton) clearSelectedTasksButton.disabled = taskCount === 0;
+
+  missedSelectionToolbar?.classList.toggle("hidden", !showMissedToolbar);
+  if (missedSelectionCount) {
+    missedSelectionCount.textContent = `${missedCount} selected`;
+  }
+  if (rescheduleSelectedMissedButton) rescheduleSelectedMissedButton.disabled = missedCount === 0;
+  if (ignoreSelectedMissedButton) ignoreSelectedMissedButton.disabled = missedCount === 0;
+  if (deleteSelectedMissedButton) deleteSelectedMissedButton.disabled = missedCount === 0;
+  if (clearSelectedMissedButton) clearSelectedMissedButton.disabled = missedCount === 0;
+  if (missedRescheduleDateInput && !missedRescheduleDateInput.value) {
+    missedRescheduleDateInput.value = todayISO;
+  }
+}
+
+function selectAllVisibleTasks() {
+  selectedTaskKeys = new Set(currentVisibleTaskKeys);
+  renderTaskSelectionState();
+  renderSelectionToolbars();
+}
+
+function selectAllVisibleMissedTasks() {
+  selectedMissedKeys = new Set(currentVisibleMissedKeys);
+  renderMissedSelectionState();
+  renderSelectionToolbars();
+}
+
+function duplicateSelectedTasks() {
+  const selectedOccurrences = getSelectedTaskOccurrences(selectedTaskKeys);
+  if (selectedOccurrences.length === 0) return;
+
+  selectedOccurrences.forEach((occurrence) => {
+    tasks.push(createSingleTaskFromOccurrence(occurrence, occurrence.occurrenceDate, occurrence.time));
+  });
+  selectedTaskKeys = new Set();
+  saveTasks();
+  render();
+  showAppToast("Tasks duplicated", `${selectedOccurrences.length} task${selectedOccurrences.length === 1 ? "" : "s"} copied.`);
+}
+
+function deleteSelectedTasks() {
+  const selectedOccurrences = getSelectedTaskOccurrences(selectedTaskKeys);
+  if (selectedOccurrences.length === 0) return;
+
+  selectedOccurrences.forEach((occurrence) => {
+    deleteTask(occurrence.id, occurrence.occurrenceDate, occurrence.repeats ? "single" : "all");
+  });
+  selectedTaskKeys = new Set();
+  saveTasks();
+  render();
+  showAppToast("Tasks deleted", `${selectedOccurrences.length} selected task${selectedOccurrences.length === 1 ? "" : "s"} removed.`);
+}
+
+function getSelectedTaskOccurrences(selection) {
+  return [...selection]
+    .map(parseTaskSelectionKey)
+    .map(({ taskId, occurrenceDate }) => {
+      const task = tasks.find((savedTask) => savedTask.id === taskId);
+      return task ? createOccurrence(task, occurrenceDate) : null;
+    })
+    .filter(Boolean);
+}
+
+function rescheduleSelectedMissedTasks() {
+  const targetDate = missedRescheduleDateInput?.value || todayISO;
+  if (!isISODateString(targetDate)) return;
+
+  const selectedItems = [...selectedMissedKeys].map(parseTaskSelectionKey);
+  selectedItems.forEach(({ taskId, occurrenceDate }) => moveMissedTask(taskId, occurrenceDate, targetDate));
+  selectedMissedKeys = new Set();
+  saveTasks();
+  render();
+}
+
+function ignoreSelectedMissedTasks() {
+  const selectedItems = [...selectedMissedKeys].map(parseTaskSelectionKey);
+  selectedItems.forEach(({ taskId, occurrenceDate }) => {
+    tasks = tasks.map((task) => skipTaskOccurrence(task, taskId, occurrenceDate));
+  });
+  selectedMissedKeys = new Set();
+  saveTasks();
+  render();
+}
+
+function deleteSelectedMissedTasks() {
+  const selectedItems = [...selectedMissedKeys].map(parseTaskSelectionKey);
+  selectedItems.forEach(({ taskId, occurrenceDate }) => {
+    tasks = deleteMissedTask(tasks, taskId, occurrenceDate);
+    clearActiveTimerFor(taskId, occurrenceDate);
+  });
+  selectedMissedKeys = new Set();
+  saveTasks();
+  render();
 }
 
 function schedulePendingGridEdit(taskId, occurrenceDate, tapKey) {
@@ -3004,6 +3300,45 @@ function cancelInactiveGridTaskMove(event) {
   if (gridMoveState && !gridMoveState.active && event.pointerId === gridMoveState.pointerId) {
     cancelGridTaskMove();
   }
+}
+
+function startMonthDayPointer(event) {
+  if (scheduleView !== "month") return;
+  if (event.button !== undefined && event.button !== 0) return;
+
+  const dayCard = event.target.closest("[data-month-date]");
+  if (!dayCard || !scheduleGrid.contains(dayCard)) return;
+
+  monthPointerState = {
+    pointerId: event.pointerId,
+    date: dayCard.dataset.monthDate,
+    startX: event.clientX,
+    startY: event.clientY,
+    startedAt: Date.now(),
+  };
+}
+
+function finishMonthDayPointer(event) {
+  if (!monthPointerState || monthPointerState.pointerId !== event.pointerId) return;
+
+  const state = monthPointerState;
+  monthPointerState = null;
+  const moved = Math.hypot(event.clientX - state.startX, event.clientY - state.startY);
+  const elapsed = Date.now() - state.startedAt;
+  const dayCard = event.target.closest("[data-month-date]");
+
+  if (!dayCard || dayCard.dataset.monthDate !== state.date || moved > 10 || elapsed > 650) return;
+
+  event.preventDefault();
+  scheduleView = "list";
+  scheduleFilter.value = "today";
+  setScheduleAnchorDate(state.date);
+}
+
+function cancelMonthDayPointer(event) {
+  if (!monthPointerState) return;
+  if (event?.pointerId !== undefined && monthPointerState.pointerId !== event.pointerId) return;
+  monthPointerState = null;
 }
 
 function cancelGridTaskMove({ refreshGrid = true } = {}) {
@@ -3275,12 +3610,15 @@ function openEditTask(taskId, occurrenceDate) {
   editTaskTypeInput.value = occurrence.type;
   editTaskPriorityInput.value = normalizePriority(occurrence.priority);
   editTaskNotesInput.value = occurrence.notes ?? "";
+  editTaskMeetingLinkInput.value = normalizeMeetingLink(occurrence.meetingLink);
   editTaskInviteEmailsInput.value = getTaskInviteFieldValue(task);
   editTaskRepeatsInput.checked = Boolean(task.repeats);
   editRepeatModeInput.value = getTaskRepeatModeValue(task);
   editRepeatIntervalDaysInput.value = String(normalizeRepeatIntervalDays(task.repeatIntervalDays));
+  editRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date);
   setEditRepeatDays(task.repeats ? task.repeatDays : []);
   toggleEditItemKindFields();
+  updateEditMeetingLinkControls();
 
   editTaskOverlay.classList.remove("hidden");
   editTaskOverlay.setAttribute("aria-hidden", "false");
@@ -3328,6 +3666,7 @@ function saveEditedTask(event) {
   const repeatIntervalDays = repeats && repeatMode === "interval"
     ? normalizeRepeatIntervalDays(editRepeatIntervalDaysInput.value)
     : 1;
+  const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(editRepeatEndDateInput.value, date) : "";
   const nextRepeatDays = repeats && repeatMode === "weekly" && repeatDays.length === 0 ? [weekdayForISODate(date)] : repeatDays;
 
   if (!title || !date || !time || !type) return;
@@ -3347,12 +3686,14 @@ function saveEditedTask(event) {
       type,
       priority: normalizePriority(editTaskPriorityInput.value),
       notes: editTaskNotesInput.value.trim(),
+      meetingLink: isMeetingType(type) ? normalizeMeetingLink(editTaskMeetingLinkInput.value) : "",
       inviteEmails,
       inviteLabels: inviteRecipients,
       sentInviteEmails: normalizeInviteEmails(task.sentInviteEmails),
       repeats,
       repeatMode,
       repeatIntervalDays,
+      repeatEndDate,
       repeatDays: repeats ? nextRepeatDays : [],
       done: repeats ? false : task.repeats ? false : Boolean(task.done),
       skipped: repeats ? false : Boolean(task.skipped),
@@ -3400,10 +3741,15 @@ function renderMissedTasks() {
   if (!featureSettings.missedTasks) {
     missedTasksPanel.classList.add("hidden");
     missedTaskList.innerHTML = "";
+    currentVisibleMissedKeys = [];
+    selectedMissedKeys = new Set();
+    renderSelectionToolbars();
     return;
   }
 
   const missedTasks = buildMissedOccurrences();
+  currentVisibleMissedKeys = missedTasks.slice(0, 8).map(createOccurrenceKey);
+  selectedMissedKeys = pruneSelectionToVisible(selectedMissedKeys, currentVisibleMissedKeys);
   missedTasksPanel.classList.toggle("hidden", missedTasks.length === 0);
   missedTasksPanel.classList.toggle("collapsed", missedTasksCollapsed);
   collapseMissedButton.textContent = missedTasksCollapsed ? `Show ${missedTasks.length}` : "Collapse";
@@ -3412,6 +3758,8 @@ function renderMissedTasks() {
     missedTasksCollapsed ? "false" : "true",
   );
   missedTaskList.innerHTML = missedTasksCollapsed ? "" : missedTasks.slice(0, 8).map(createMissedTaskCard).join("");
+  renderMissedSelectionState();
+  renderSelectionToolbars();
 }
 
 function createMissedTaskCard(task) {
@@ -3459,6 +3807,7 @@ function createTaskCard(task) {
   const canStartTimer = !isReminder && !task.done && (!activeTimer || isTimerActive);
   const timingLabel = getTaskTimingLabel(task);
   const endTimeChip = createEndTimeChip(task);
+  const meetingLinkChip = createMeetingLinkChip(task);
   const timerPanel = isTimerActive
     ? `
       <div class="task-timer" data-timer-task>
@@ -3502,6 +3851,7 @@ function createTaskCard(task) {
           ${priorityChip}
           ${streakChip}
           <span class="chip">${escapeHTML(repeatLabel)}</span>
+          ${meetingLinkChip}
         </div>
       </div>
       <div class="task-actions">
@@ -3535,6 +3885,7 @@ function createCompletedTaskCard(task) {
   const streakChip = createStreakChip(task.type);
   const endTimeChip = createEndTimeChip(task);
   const typeStyle = createTypeStyleAttribute(task.type);
+  const meetingLinkChip = createMeetingLinkChip(task);
 
   return `
     <article class="task-card done" data-task-id="${task.id}" data-occurrence-date="${task.occurrenceDate}" ${typeStyle}>
@@ -3552,6 +3903,7 @@ function createCompletedTaskCard(task) {
           ${priorityChip}
           ${streakChip}
           <span class="chip">${escapeHTML(repeatLabel)}</span>
+          ${meetingLinkChip}
         </div>
       </div>
       <div class="completed-task-actions">
@@ -3564,11 +3916,81 @@ function createCompletedTaskCard(task) {
   `;
 }
 
+function createScheduleDisplay(occurrences, options = {}) {
+  if (scheduleView === "month" && options.context !== "home") {
+    return createMonthScheduleView(occurrences, options);
+  }
+
+  return createScheduleGrid(occurrences, options);
+}
+
 function createScheduleGrid(occurrences, options = {}) {
   const range = options.range ?? scheduleGridRange.value;
   return range === "day"
     ? createDayScheduleGrid(occurrences, options)
     : createWeekScheduleGrid(occurrences, options);
+}
+
+function createMonthScheduleView(occurrences, options = {}) {
+  const monthRange = getMonthDateRange(options.anchorDate ?? scheduleAnchorDate);
+  const calendarStart = getWeekStart(monthRange.start);
+  const calendarEnd = addDays(getWeekStart(addDays(monthRange.end, 6)), 6);
+  const tasksByDate = groupTasksByDate(occurrences);
+  const days = [];
+
+  for (let day = new Date(calendarStart); day <= calendarEnd; day = addDays(day, 1)) {
+    const isoDate = toDateInputValue(day);
+    const dayTasks = (tasksByDate.get(isoDate) ?? []).filter((task) => !task.skipped);
+    days.push(createMonthDayCell(isoDate, dayTasks, monthRange.start.getMonth()));
+  }
+
+  return `
+    <section class="month-view-card">
+      <div class="day-grid-header">
+        <h3>${formatMonthHeading(monthRange.start)}</h3>
+        <span>${occurrences.length} task${occurrences.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="month-weekdays" aria-hidden="true">
+        ${["M", "T", "W", "T", "F", "S", "S"].map((day) => `<span>${day}</span>`).join("")}
+      </div>
+      <div class="month-grid">
+        ${days.join("")}
+      </div>
+    </section>
+  `;
+}
+
+function createMonthDayCell(isoDate, dayTasks, visibleMonth) {
+  const date = parseISODate(isoDate);
+  const isOutsideMonth = date.getMonth() !== visibleMonth;
+  const sortedTasks = [...dayTasks].sort((first, second) => timeToMinutes(first.time) - timeToMinutes(second.time));
+  const previewTasks = sortedTasks.slice(0, 3);
+  const typeDots = [...new Set(sortedTasks.map((task) => task.type))]
+    .slice(0, 5)
+    .map((type) => {
+      const typeStyle = getTaskTypeStyle(type);
+      return `<i style="--type-color: ${typeStyle.color};"></i>`;
+    })
+    .join("");
+  const preview = previewTasks.length
+    ? previewTasks
+        .map((task) => `<small>${escapeHTML(formatTimeFromMinutes(timeToMinutes(task.time)))} ${escapeHTML(task.title)}</small>`)
+        .join("")
+    : "<em>No tasks</em>";
+
+  return `
+    <button
+      class="month-day-card ${isOutsideMonth ? "outside-month" : ""} ${isoDate === todayISO ? "today" : ""}"
+      type="button"
+      data-month-date="${isoDate}"
+      aria-label="${formatDateHeading(isoDate)} with ${dayTasks.length} task${dayTasks.length === 1 ? "" : "s"}"
+    >
+      <span class="month-date-number">${date.getDate()}</span>
+      <strong>${dayTasks.length} task${dayTasks.length === 1 ? "" : "s"}</strong>
+      <span class="month-type-dots">${typeDots}</span>
+      <span class="month-task-preview">${preview}</span>
+    </button>
+  `;
 }
 
 function createDayScheduleGrid(occurrences, options = {}) {
@@ -3712,7 +4134,15 @@ function getGridOccurrences(occurrences, options = {}) {
   const range = getGridDateRange(options);
   return occurrences.filter((task) => {
     const taskDate = parseISODate(task.occurrenceDate);
-    return taskDate >= range.start && taskDate <= range.end && matchesGridStatusFilter(task);
+    return taskDate >= range.start && taskDate <= range.end && matchesGridStatusFilter(task) && matchesScheduleExtraFilters(task);
+  });
+}
+
+function getMonthOccurrences(occurrences, options = {}) {
+  const range = getMonthDateRange(options.anchorDate ?? scheduleAnchorDate);
+  return occurrences.filter((task) => {
+    const taskDate = parseISODate(task.occurrenceDate);
+    return taskDate >= range.start && taskDate <= range.end && matchesGridStatusFilter(task) && matchesScheduleExtraFilters(task);
   });
 }
 
@@ -4090,6 +4520,13 @@ function formatWeekDayHeading(isoDate) {
   });
 }
 
+function formatMonthHeading(date) {
+  return date.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function getScheduleWeekDates(anchorDate = scheduleAnchorDate) {
   const weekStart = getWeekStart(parseISODate(anchorDate));
   return Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(weekStart, index)));
@@ -4108,6 +4545,13 @@ function getWeekStart(date) {
   const day = date.getDay();
   const daysSinceMonday = (day + 6) % 7;
   return addDays(startOfToday(date), -daysSinceMonday);
+}
+
+function getMonthDateRange(anchorDate = scheduleAnchorDate) {
+  const date = parseISODate(anchorDate);
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { start, end };
 }
 
 function createTypeStyleAttribute(type) {
@@ -4142,11 +4586,61 @@ function renderTaskTypeOptions(selectedType = taskTypeInput.value || BUILT_IN_TA
   toggleCustomTypeInput();
 }
 
+function renderScheduleTypeFilter() {
+  if (!scheduleTypeFilter) return;
+
+  const previousValue = scheduleTypeFilter.value || "all";
+  const options = [...BUILT_IN_TASK_TYPES, ...customTaskTypes];
+  scheduleTypeFilter.innerHTML = `
+    <option value="all">All types</option>
+    ${options.map((type) => `<option value="${escapeHTML(type)}">${escapeHTML(type)}</option>`).join("")}
+  `;
+  scheduleTypeFilter.value = previousValue === "all" || options.includes(previousValue) ? previousValue : "all";
+}
+
 function toggleCustomTypeInput() {
   const isCustom = taskTypeInput.value === "custom";
   customTaskTypeInput.classList.toggle("hidden", !isCustom);
   customTaskTypeInput.toggleAttribute("required", isCustom);
   if (isCustom) customTaskTypeInput.focus();
+  updateMeetingLinkControls();
+}
+
+function handleTaskTypeChange() {
+  toggleCustomTypeInput();
+  updateMeetingLinkControls();
+}
+
+function updateMeetingLinkControls() {
+  const selectedType = taskTypeInput.value === "custom"
+    ? normalizeTaskTypeName(customTaskTypeInput.value)
+    : taskTypeInput.value;
+  setMeetingFieldVisibility(taskMeetingField, taskMeetingLinkInput, isMeetingType(selectedType));
+}
+
+function updateEditMeetingLinkControls() {
+  setMeetingFieldVisibility(editTaskMeetingField, editTaskMeetingLinkInput, isMeetingType(editTaskTypeInput.value));
+}
+
+function setMeetingFieldVisibility(field, input, isVisible) {
+  field?.classList.toggle("hidden", !isVisible);
+  if (!isVisible && input) input.value = "";
+}
+
+function isMeetingType(type) {
+  return normalizeTaskTypeName(type).toLowerCase() === "meeting";
+}
+
+function applyMeetingPreset(event) {
+  const button = event.currentTarget;
+  const presetUrl = MEETING_PRESET_LINKS[button.dataset.meetingPreset];
+  if (!presetUrl) return;
+
+  const targetInput = button.dataset.meetingTarget === "edit"
+    ? editTaskMeetingLinkInput
+    : taskMeetingLinkInput;
+  targetInput.value = presetUrl;
+  targetInput.focus();
 }
 
 function getSubmittedTaskType(formData) {
@@ -4190,6 +4684,8 @@ function applySelectedTaskTemplate() {
   taskRepeatsInput.checked = Boolean(template.repeats);
   taskRepeatModeInput.value = getTaskRepeatModeValue(template);
   taskRepeatIntervalDaysInput.value = String(normalizeRepeatIntervalDays(template.repeatIntervalDays));
+  taskRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(template.repeatEndDate, taskDateInput.value);
+  taskMeetingLinkInput.value = normalizeMeetingLink(template.meetingLink);
   setRepeatDays(template.repeats ? template.repeatDays : []);
 
   if (template.type && !hasTaskType(BUILT_IN_TASK_TYPES, template.type) && !hasTaskType(customTaskTypes, template.type)) {
@@ -4214,10 +4710,12 @@ function saveCurrentTaskTemplate() {
     timerMode: formData.get("timerMode"),
     type,
     notes: formData.get("notes"),
+    meetingLink: isMeetingType(type) ? formData.get("meetingLink") : "",
     priority: formData.get("priority"),
     repeats: formData.get("repeats") === "on",
     repeatMode: getRepeatModeForItemKind(formData.get("itemKind"), formData.get("repeatMode")),
     repeatIntervalDays: formData.get("repeatIntervalDays"),
+    repeatEndDate: formData.get("repeatEndDate"),
     repeatDays: getSelectedRepeatDays(),
   });
 
@@ -4254,6 +4752,7 @@ function saveCustomTaskType(type) {
   customTaskTypes = mergeCustomTaskTypes(customTaskTypes, [taskType]);
   saveCustomTaskTypes();
   renderTaskTypeOptions(taskType);
+  renderScheduleTypeFilter();
 }
 
 function mergeCustomTaskTypes(currentTypes, newTypes) {
@@ -4424,10 +4923,16 @@ function setScheduleAnchorDate(value) {
 }
 
 function shiftScheduleAnchorDate(amount) {
+  if (scheduleView === "month") {
+    setScheduleAnchorDate(toDateInputValue(addMonths(parseISODate(scheduleAnchorDate), amount < 0 ? -1 : 1)));
+    return;
+  }
+
   setScheduleAnchorDate(toDateInputValue(addDays(parseISODate(scheduleAnchorDate), amount)));
 }
 
 function getScheduleNavigationStep() {
+  if (scheduleView === "month") return 1;
   return scheduleView === "grid" && scheduleGridRange.value === "week" ? 7 : 1;
 }
 
@@ -5070,6 +5575,7 @@ function getChartXTicks(dailyStats, days) {
 
 function matchesCurrentFilter(task) {
   if (task.skipped) return false;
+  if (!matchesScheduleExtraFilters(task)) return false;
 
   const filter = scheduleFilter.value;
   const taskDateTime = new Date(`${task.occurrenceDate}T${task.time}`);
@@ -5078,6 +5584,15 @@ function matchesCurrentFilter(task) {
   if (filter === "today") return task.occurrenceDate === scheduleAnchorDate && !task.done;
   if (filter === "upcoming") return !task.done && taskDateTime >= selectedDateStart;
   if (filter === "done") return task.done;
+  return true;
+}
+
+function matchesScheduleExtraFilters(task) {
+  const typeFilter = scheduleTypeFilter?.value ?? "all";
+  const priorityFilter = schedulePriorityFilter?.value ?? "all";
+
+  if (typeFilter !== "all" && task.type !== typeFilter) return false;
+  if (priorityFilter !== "all" && normalizePriority(task.priority) !== priorityFilter) return false;
   return true;
 }
 
@@ -5230,6 +5745,7 @@ function createSingleTaskFromOccurrence(task, targetDate, targetTime = task.time
     type: task.type,
     priority: normalizePriority(task.priority),
     notes: task.notes ?? "",
+    meetingLink: isMeetingType(task.type) ? normalizeMeetingLink(task.meetingLink) : "",
     repeats: false,
     repeatDays: [],
     completedDates: [],
@@ -5475,8 +5991,10 @@ function resetForm() {
   taskTemplateSelect.value = "";
   taskRepeatModeInput.value = "weekly";
   taskRepeatIntervalDaysInput.value = "2";
+  taskRepeatEndDateInput.value = "";
   customTaskTypeInput.value = "";
   taskInviteEmailsInput.value = "";
+  taskMeetingLinkInput.value = "";
   toggleCustomTypeInput();
   toggleItemKindFields();
 }
@@ -5509,6 +6027,10 @@ function setRepeatDays(days) {
 }
 
 function createRepeatLabel(taskOrRepeatDays) {
+  const endLabel = !Array.isArray(taskOrRepeatDays) && normalizeOptionalRepeatEndDate(taskOrRepeatDays?.repeatEndDate, taskOrRepeatDays?.date)
+    ? ` until ${formatDateHeading(taskOrRepeatDays.repeatEndDate)}`
+    : "";
+
   if (!Array.isArray(taskOrRepeatDays) && getTaskRepeatModeValue(taskOrRepeatDays) === "interval") {
     const interval = normalizeRepeatIntervalDays(taskOrRepeatDays.repeatIntervalDays);
     const repeatDays = normalizeRepeatDays(taskOrRepeatDays.repeatDays);
@@ -5516,15 +6038,15 @@ function createRepeatLabel(taskOrRepeatDays) {
     const weeklyLabel = repeatDays.length > 0 && repeatDays.length < 7
       ? ` + ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}`
       : "";
-    return repeatDays.length === 7 ? "Every day" : `${intervalLabel}${weeklyLabel}`;
+    return `${repeatDays.length === 7 ? "Every day" : `${intervalLabel}${weeklyLabel}`}${endLabel}`;
   }
 
   const repeatDays = Array.isArray(taskOrRepeatDays)
     ? taskOrRepeatDays
     : normalizeRepeatDays(taskOrRepeatDays?.repeatDays);
-  if (!repeatDays.length) return "Weekly";
-  if (repeatDays.length === 7) return "Every day";
-  return `Weekly: ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}`;
+  if (!repeatDays.length) return `Weekly${endLabel}`;
+  if (repeatDays.length === 7) return `Every day${endLabel}`;
+  return `Weekly: ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}${endLabel}`;
 }
 
 function createPriorityChip(task) {
@@ -5532,6 +6054,14 @@ function createPriorityChip(task) {
 
   const priority = normalizePriority(task.priority);
   return `<span class="chip priority-chip priority-${priority.toLowerCase()}">${priority}</span>`;
+}
+
+function createMeetingLinkChip(task) {
+  if (!isMeetingType(task.type)) return "";
+  const link = normalizeMeetingLink(task.meetingLink);
+  if (!link) return "";
+
+  return `<a class="chip meeting-link-chip" href="${escapeHTML(link)}" target="_blank" rel="noopener">Open meeting</a>`;
 }
 
 function createStreakChip(type) {
@@ -7985,9 +8515,11 @@ function createTaskInvitePayload(task) {
     type: normalizeTaskTypeName(task.type) || "Personal",
     priority: normalizePriority(task.priority),
     notes: String(task.notes ?? "").trim().slice(0, 700),
+    meetingLink: isMeetingType(task.type) ? normalizeMeetingLink(task.meetingLink) : "",
     repeats: Boolean(task.repeats),
     repeatMode: getTaskRepeatModeValue(task),
     repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
+    repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date),
     repeatDays: normalizeRepeatDays(task.repeatDays),
   };
 }
@@ -8012,9 +8544,11 @@ function createTaskFromInvite(invite) {
     type: normalizeTaskTypeName(payload.type) || "Personal",
     priority: normalizePriority(payload.priority),
     notes: String(payload.notes ?? "").trim().slice(0, 700),
+    meetingLink: isMeetingType(payload.type) ? normalizeMeetingLink(payload.meetingLink) : "",
     repeats: Boolean(payload.repeats),
     repeatMode,
     repeatIntervalDays: normalizeRepeatIntervalDays(payload.repeatIntervalDays),
+    repeatEndDate: normalizeOptionalRepeatEndDate(payload.repeatEndDate, date),
     repeatDays: Boolean(payload.repeats) ? repeatDays : [],
     completedDates: [],
     skippedDates: [],
@@ -8079,6 +8613,7 @@ function createProfileCloudData(profileId) {
     homeWidgetLayout: readProfileJSON(HOME_WIDGET_LAYOUT_STORAGE_KEY, profileId, {}),
     friends: readProfileJSON(FRIENDS_STORAGE_KEY, profileId, []),
     shareSettings: readProfileJSON(SHARE_SETTINGS_STORAGE_KEY, profileId, DEFAULT_SHARE_SETTINGS),
+    notes: readProfileJSON(NOTES_STORAGE_KEY, profileId, []),
     activeTimer: readProfileJSON(TIMER_STORAGE_KEY, profileId, null),
     weeklyReportSeenKey: localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY, profileId)) ?? "",
     dismissedOverlapSignature: localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY, profileId)) ?? "",
@@ -8225,6 +8760,8 @@ function applyCloudSnapshot(snapshot) {
     taskTemplates = loadTaskTemplates();
     friends = loadFriends();
     shareSettings = loadShareSettings();
+    notes = loadNotes();
+    activeNoteId = notes[0]?.id ?? "";
     dismissedOverlapSignature = localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY)) ?? "";
     missedTasksCollapsed = localStorage.getItem(getProfileStorageKey(MISSED_COLLAPSE_STORAGE_KEY)) === "true";
     activeTimer = loadActiveTimer();
@@ -8234,7 +8771,9 @@ function applyCloudSnapshot(snapshot) {
     renderProfileControls();
     renderFriendControls();
     renderTaskTypeOptions();
+    renderScheduleTypeFilter();
     renderTaskTemplateOptions();
+    renderNotes();
     renderHomeWidgetControls();
     applyWeeklyGoalsToControls();
     applyFeatureSettingsToControls();
@@ -8281,6 +8820,7 @@ function writeProfileCloudData(profileId, data) {
   );
   writeProfileJSON(FRIENDS_STORAGE_KEY, profileId, normalizeFriends(data.friends));
   writeProfileJSON(SHARE_SETTINGS_STORAGE_KEY, profileId, normalizeShareSettings(data.shareSettings ?? {}));
+  writeProfileJSON(NOTES_STORAGE_KEY, profileId, normalizeNotes(data.notes));
 
   if (data.activeTimer) {
     writeProfileJSON(TIMER_STORAGE_KEY, profileId, data.activeTimer);
@@ -8471,6 +9011,8 @@ function switchProfile(profileId) {
   taskTemplates = loadTaskTemplates();
   friends = loadFriends();
   shareSettings = loadShareSettings();
+  notes = loadNotes();
+  activeNoteId = notes[0]?.id ?? "";
   dismissedOverlapSignature = localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY)) ?? "";
   missedTasksCollapsed = localStorage.getItem(getProfileStorageKey(MISSED_COLLAPSE_STORAGE_KEY)) === "true";
   activeTimer = loadActiveTimer();
@@ -8479,7 +9021,9 @@ function switchProfile(profileId) {
   renderProfileControls();
   renderFriendControls();
   renderTaskTypeOptions();
+  renderScheduleTypeFilter();
   renderTaskTemplateOptions();
+  renderNotes();
   renderHomeWidgetControls();
   applyWeeklyGoalsToControls();
   resetForm();
@@ -8649,6 +9193,124 @@ function formatShortDate(value) {
   });
 }
 
+function renderNotes() {
+  if (!notesList || !notesEmptyState || !noteEditorFields) return;
+
+  const sortedNotes = [...notes].sort((first, second) =>
+    String(second.updatedAt ?? "").localeCompare(String(first.updatedAt ?? "")),
+  );
+  if (!notes.some((note) => note.id === activeNoteId)) {
+    activeNoteId = sortedNotes[0]?.id ?? "";
+  }
+
+  notesList.innerHTML = sortedNotes.length
+    ? sortedNotes.map(createNoteListItem).join("")
+    : `
+      <div class="notes-sidebar-empty">
+        <strong>No notes yet</strong>
+        <span>Tap New note to start.</span>
+      </div>
+    `;
+
+  const activeNote = getActiveNote();
+  notesEmptyState.classList.toggle("hidden", Boolean(activeNote));
+  noteEditorFields.classList.toggle("hidden", !activeNote);
+
+  if (!activeNote) return;
+
+  noteTitleInput.value = activeNote.title;
+  noteBodyInput.value = activeNote.body;
+  noteSavedStatus.textContent = `Saved ${formatShortDate(activeNote.updatedAt)}`;
+}
+
+function createNoteListItem(note) {
+  const title = note.title || "Untitled note";
+  const preview = note.body.trim().split(/\n+/)[0] || "No extra text";
+
+  return `
+    <button class="note-list-item ${note.id === activeNoteId ? "active" : ""}" type="button" data-note-id="${escapeHTML(note.id)}">
+      <strong>${escapeHTML(title)}</strong>
+      <span>${escapeHTML(preview.slice(0, 90))}</span>
+      <small>${escapeHTML(formatShortDate(note.updatedAt))}</small>
+    </button>
+  `;
+}
+
+function handleNotesListClick(event) {
+  const noteButton = event.target.closest("[data-note-id]");
+  if (!noteButton) return;
+
+  activeNoteId = noteButton.dataset.noteId;
+  renderNotes();
+}
+
+function createNote() {
+  const now = new Date().toISOString();
+  const note = {
+    id: crypto.randomUUID(),
+    title: "Untitled note",
+    body: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  notes = [note, ...notes];
+  activeNoteId = note.id;
+  saveNotes();
+  renderNotes();
+  requestAnimationFrame(() => {
+    noteTitleInput?.focus();
+    noteTitleInput?.select();
+  });
+}
+
+function saveActiveNoteFromEditor() {
+  const activeNote = getActiveNote();
+  if (!activeNote) return;
+
+  const now = new Date().toISOString();
+  notes = notes.map((note) =>
+    note.id === activeNote.id
+      ? {
+          ...note,
+          title: normalizeNoteTitle(noteTitleInput.value),
+          body: String(noteBodyInput.value ?? "").slice(0, 16000),
+          updatedAt: now,
+        }
+      : note,
+  );
+  saveNotes();
+  if (noteSavedStatus) noteSavedStatus.textContent = "Saved now";
+  renderNoteListOnly();
+}
+
+function renderNoteListOnly() {
+  if (!notesList) return;
+
+  const sortedNotes = [...notes].sort((first, second) =>
+    String(second.updatedAt ?? "").localeCompare(String(first.updatedAt ?? "")),
+  );
+  notesList.innerHTML = sortedNotes.map(createNoteListItem).join("");
+}
+
+function deleteActiveNote() {
+  if (!activeNoteId) return;
+
+  notes = notes.filter((note) => note.id !== activeNoteId);
+  activeNoteId = notes[0]?.id ?? "";
+  saveNotes();
+  renderNotes();
+}
+
+function getActiveNote() {
+  return notes.find((note) => note.id === activeNoteId) ?? null;
+}
+
+function saveNotes() {
+  localStorage.setItem(getProfileStorageKey(NOTES_STORAGE_KEY), JSON.stringify(notes));
+  queueCloudSave();
+}
+
 function saveTasks() {
   localStorage.setItem(getProfileStorageKey(STORAGE_KEY), JSON.stringify(tasks));
   queueCloudSave();
@@ -8760,6 +9422,14 @@ function loadShareSettings() {
   }
 }
 
+function loadNotes() {
+  try {
+    return normalizeNotes(JSON.parse(localStorage.getItem(getProfileStorageKey(NOTES_STORAGE_KEY))) ?? []);
+  } catch {
+    return [];
+  }
+}
+
 function normalizeShareSettings(value) {
   return {
     ...DEFAULT_SHARE_SETTINGS,
@@ -8767,6 +9437,35 @@ function normalizeShareSettings(value) {
     gridPublic: Boolean(value?.gridPublic),
     activityPublic: value?.activityPublic !== false,
   };
+}
+
+function normalizeNotes(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((note) => {
+      const id = String(note?.id ?? "").trim() || crypto.randomUUID();
+      const createdAt = isValidDateString(note?.createdAt) ? note.createdAt : new Date().toISOString();
+      const updatedAt = isValidDateString(note?.updatedAt) ? note.updatedAt : createdAt;
+
+      return {
+        id,
+        title: normalizeNoteTitle(note?.title),
+        body: String(note?.body ?? "").slice(0, 16000),
+        createdAt,
+        updatedAt,
+      };
+    })
+    .slice(0, 100);
+}
+
+function normalizeNoteTitle(value) {
+  const title = String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+  return title || "Untitled note";
+}
+
+function isValidDateString(value) {
+  return !Number.isNaN(new Date(value).getTime());
 }
 
 function normalizeHomeWidgets(value) {
@@ -8914,10 +9613,32 @@ function normalizeOptionalEndTime(value) {
   return isTimeInputValue(value) ? String(value) : "";
 }
 
+function normalizeOptionalRepeatEndDate(value, startDate = "") {
+  const repeatEndDate = String(value ?? "").trim();
+  if (!isISODateString(repeatEndDate)) return "";
+  if (isISODateString(startDate) && parseISODate(repeatEndDate) < parseISODate(startDate)) return "";
+  return repeatEndDate;
+}
+
+function normalizeMeetingLink(value) {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return "";
+
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`;
+  try {
+    const url = new URL(withProtocol);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.href.slice(0, 500);
+  } catch {
+    return "";
+  }
+}
+
 function normalizeTasks(savedTasks) {
   return savedTasks.map((task) => {
     const itemKind = normalizeItemKind(task.itemKind);
     const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(task.timerMode);
+    const type = normalizeTaskTypeName(task.type);
 
     return {
       ...task,
@@ -8926,9 +9647,11 @@ function normalizeTasks(savedTasks) {
       duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
       timerMode,
       priority: normalizePriority(task.priority),
+      type,
       repeats: Boolean(task.repeats),
       repeatMode: getRepeatModeForItemKind(task.itemKind, task.repeatMode, "weekly"),
       repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
+      repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date),
       repeatDays: normalizeRepeatDays(task.repeatDays),
       completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
       skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates : [],
@@ -8939,6 +9662,7 @@ function normalizeTasks(savedTasks) {
       inviteEmails: normalizeInviteEmails(task.inviteEmails),
       inviteLabels: normalizeInviteLabels(task.inviteLabels ?? task.inviteEmails),
       sentInviteEmails: normalizeInviteEmails(task.sentInviteEmails),
+      meetingLink: isMeetingType(type) ? normalizeMeetingLink(task.meetingLink) : "",
       sharedInviteId: String(task.sharedInviteId ?? ""),
       sharedByEmail: normalizeEmail(task.sharedByEmail),
       sharedByName: normalizeShedulrDisplayName(task.sharedByName),
@@ -8960,6 +9684,7 @@ function normalizeNumberMap(value) {
 function normalizeTaskTemplate(template) {
   const itemKind = normalizeItemKind(template.itemKind);
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(template.timerMode);
+  const type = normalizeTaskTypeName(template.type);
   return {
     id: template.id || crypto.randomUUID(),
     itemKind,
@@ -8967,12 +9692,14 @@ function normalizeTaskTemplate(template) {
     endTime: itemKind === "reminder" ? normalizeOptionalEndTime(template.endTime) : "",
     duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(template.duration),
     timerMode,
-    type: normalizeTaskTypeName(template.type),
+    type,
     notes: String(template.notes ?? "").trim().slice(0, 400),
+    meetingLink: isMeetingType(type) ? normalizeMeetingLink(template.meetingLink) : "",
     priority: normalizePriority(template.priority),
     repeats: Boolean(template.repeats),
     repeatMode: getRepeatModeForItemKind(itemKind, template.repeatMode, "weekly"),
     repeatIntervalDays: normalizeRepeatIntervalDays(template.repeatIntervalDays),
+    repeatEndDate: normalizeOptionalRepeatEndDate(template.repeatEndDate, ""),
     repeatDays: normalizeRepeatDays(template.repeatDays),
   };
 }
@@ -8996,6 +9723,16 @@ function weekdayForISODate(value) {
 function addDays(date, amount) {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + amount);
+  return nextDate;
+}
+
+function addMonths(date, amount) {
+  const nextDate = new Date(date);
+  const targetDay = nextDate.getDate();
+  nextDate.setDate(1);
+  nextDate.setMonth(nextDate.getMonth() + amount);
+  const daysInTargetMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+  nextDate.setDate(Math.min(targetDay, daysInTargetMonth));
   return nextDate;
 }
 
