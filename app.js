@@ -19,6 +19,7 @@ const STARTUP_QUOTE_STORAGE_KEY = "daily-task-scheduler.startup-quote";
 const FRIENDS_STORAGE_KEY = "daily-task-scheduler.friends";
 const SHARE_SETTINGS_STORAGE_KEY = "daily-task-scheduler.share-settings";
 const NOTES_STORAGE_KEY = "daily-task-scheduler.notes";
+const GROUPS_STORAGE_KEY = "daily-task-scheduler.groups";
 const SUPABASE_URL = "https://xaacjrtkzvphztifnywm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhYWNqcnRrenZwaHp0aWZueXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDA4NzcsImV4cCI6MjA5NTg3Njg3N30.mTBCPN4JiVDWQVVxBXyFE67vJ3i8A4JoW8mpUO1wDfo";
 const APP_AUTH_REDIRECT_URL = "https://ejam1210.github.io/Task-scheduling-app/";
@@ -40,6 +41,7 @@ const PROFILE_SCOPED_STORAGE_KEYS = [
   FRIENDS_STORAGE_KEY,
   SHARE_SETTINGS_STORAGE_KEY,
   NOTES_STORAGE_KEY,
+  GROUPS_STORAGE_KEY,
 ];
 const SCHEDULE_DAYS_TO_SHOW = 30;
 const GRID_MINUTE_HEIGHT = 2.05;
@@ -66,6 +68,19 @@ const HOME_WIDGET_DESKTOP_QUERY = "(min-width: 761px) and (pointer: fine)";
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const BUILT_IN_TASK_TYPES = ["Focus", "Personal", "Study", "Health", "Errand", "Event", "Meeting"];
 const PRIORITY_LEVELS = ["Low", "Medium", "High"];
+const GROUP_TYPES = ["friends", "family", "work", "other"];
+const GROUP_TYPE_LABELS = {
+  friends: "Friends",
+  family: "Family",
+  work: "Work",
+  other: "Other",
+};
+const GROUP_ROLES = ["host", "leader", "member"];
+const GROUP_ROLE_LABELS = {
+  host: "Host",
+  leader: "Leader",
+  member: "Member",
+};
 const HOME_WIDGET_DEFINITIONS = [
   { id: "stats", label: "Stats" },
   { id: "streak", label: "Streak" },
@@ -182,6 +197,14 @@ const taskRepeatIntervalDaysInput = document.querySelector("#taskRepeatIntervalD
 const repeatEndField = document.querySelector("#repeatEndField");
 const taskRepeatEndDateInput = document.querySelector("#taskRepeatEndDate");
 const weekdayPicker = document.querySelector("#weekdayPicker");
+const specificDatePicker = document.querySelector("#specificDatePicker");
+const specificRepeatDateInput = document.querySelector("#specificRepeatDate");
+const addSpecificDateButton = document.querySelector("#addSpecificDateButton");
+const taskRepeatSpecificDatesInput = document.querySelector("#taskRepeatSpecificDates");
+const specificCalendarLabel = document.querySelector("#specificCalendarLabel");
+const specificCalendarGrid = document.querySelector("#specificCalendarGrid");
+const specificCalendar = document.querySelector("#specificCalendar");
+const specificDateChips = document.querySelector("#specificDateChips");
 const taskMeetingField = document.querySelector("#taskMeetingField");
 const taskMeetingLinkInput = document.querySelector("#taskMeetingLink");
 const profileButton = document.querySelector("#profileButton");
@@ -227,6 +250,12 @@ const friendQrCode = document.querySelector("#friendQrCode");
 const copyFriendLinkButton = document.querySelector("#copyFriendLinkButton");
 const shareFriendLinkButton = document.querySelector("#shareFriendLinkButton");
 const friendDetailPanel = document.querySelector("#friendDetailPanel");
+const groupsSection = document.querySelector("#groupsSection");
+const groupCreateForm = document.querySelector("#groupCreateForm");
+const groupNameInput = document.querySelector("#groupNameInput");
+const groupTypeSelect = document.querySelector("#groupTypeSelect");
+const groupsStatus = document.querySelector("#groupsStatus");
+const groupsList = document.querySelector("#groupsList");
 const taskFriendInviteList = document.querySelector("#taskFriendInviteList");
 const editFriendInviteList = document.querySelector("#editFriendInviteList");
 const inviteInbox = document.querySelector("#inviteInbox");
@@ -294,6 +323,14 @@ const editRepeatIntervalDaysInput = document.querySelector("#editRepeatIntervalD
 const editRepeatEndField = document.querySelector("#editRepeatEndField");
 const editRepeatEndDateInput = document.querySelector("#editRepeatEndDate");
 const editWeekdayPicker = document.querySelector("#editWeekdayPicker");
+const editSpecificDatePicker = document.querySelector("#editSpecificDatePicker");
+const editSpecificRepeatDateInput = document.querySelector("#editSpecificRepeatDate");
+const editAddSpecificDateButton = document.querySelector("#editAddSpecificDateButton");
+const editRepeatSpecificDatesInput = document.querySelector("#editRepeatSpecificDates");
+const editSpecificCalendarLabel = document.querySelector("#editSpecificCalendarLabel");
+const editSpecificCalendarGrid = document.querySelector("#editSpecificCalendarGrid");
+const editSpecificCalendar = document.querySelector("#editSpecificCalendar");
+const editSpecificDateChips = document.querySelector("#editSpecificDateChips");
 const editTaskMeetingField = document.querySelector("#editTaskMeetingField");
 const scheduleFilterButton = document.querySelector("#scheduleFilterButton");
 const scheduleFilterBadge = document.querySelector("#scheduleFilterBadge");
@@ -344,6 +381,8 @@ const deleteNoteButton = document.querySelector("#deleteNoteButton");
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) ?? null;
 const cancelEditTaskButton = document.querySelector("#cancelEditTask");
 const deleteEditedTaskButton = document.querySelector("#deleteEditedTaskButton");
+const today = new Date();
+const todayISO = toDateInputValue(today);
 
 let cloudUser = null;
 let cloudSaveTimeout = null;
@@ -363,7 +402,7 @@ let activeNoteId = notes[0]?.id ?? "";
 let featureSettings;
 let taskTemplates = loadTaskTemplates();
 let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) ?? "light";
-let currentAccentTheme = localStorage.getItem(ACCENT_STORAGE_KEY) ?? "green";
+let currentAccentTheme = localStorage.getItem(ACCENT_STORAGE_KEY) ?? "sleek";
 let scheduleView = "list";
 let scheduleAnchorDate = "";
 let homeGridAnchorDate = "";
@@ -406,6 +445,7 @@ let isSavingShedulrName = false;
 let pendingRepeatDelete = null;
 let friends = [];
 let shareSettings = { gridPublic: false, activityPublic: true };
+let groups = [];
 let isLoadingFriends = false;
 let renderedFriendShareUrl = "";
 let selectedTaskKeys = new Set();
@@ -413,6 +453,10 @@ let selectedMissedKeys = new Set();
 let currentVisibleTaskKeys = [];
 let currentVisibleMissedKeys = [];
 let monthPointerState = null;
+let taskSpecificRepeatDates = [];
+let editSpecificRepeatDates = [];
+let taskSpecificCalendarMonth = startOfMonth(parseISODate(todayISO));
+let editSpecificCalendarMonth = startOfMonth(parseISODate(todayISO));
 let scheduleTypeFilters = new Set();
 let schedulePriorityFilters = new Set();
 let noteSpeechRecognition = null;
@@ -451,7 +495,7 @@ const DEFAULT_FEATURE_SETTINGS = {
   missedTasks: true,
   focusMode: false,
   taskReminders: false,
-  listTimeline: false,
+  listTimeline: true,
 };
 
 const DEFAULT_SHARE_SETTINGS = {
@@ -538,13 +582,11 @@ const ACCENT_THEMES = {
     dark: { accent: "#e4ba67", strong: "#f2d99c", soft: "rgba(228, 186, 103, 0.17)", faint: "rgba(228, 186, 103, 0.08)", border: "rgba(228, 186, 103, 0.4)" },
   },
   sleek: {
-    light: { accent: "#6f777c", strong: "#3f474c", soft: "rgba(111, 119, 124, 0.14)", faint: "rgba(111, 119, 124, 0.08)", border: "rgba(111, 119, 124, 0.35)" },
-    dark: { accent: "#aeb6ba", strong: "#d6dde0", soft: "rgba(174, 182, 186, 0.16)", faint: "rgba(174, 182, 186, 0.08)", border: "rgba(174, 182, 186, 0.38)" },
+    light: { accent: "#f4f6f3", strong: "#172026", soft: "rgba(244, 246, 243, 0.74)", faint: "rgba(244, 246, 243, 0.52)", border: "rgba(220, 226, 218, 0.88)" },
+    dark: { accent: "#e8ece7", strong: "#ffffff", soft: "rgba(232, 236, 231, 0.13)", faint: "rgba(232, 236, 231, 0.08)", border: "rgba(232, 236, 231, 0.22)" },
   },
 };
 
-const today = new Date();
-const todayISO = toDateInputValue(today);
 scheduleAnchorDate = todayISO;
 homeGridAnchorDate = todayISO;
 taskDateInput.value = todayISO;
@@ -553,6 +595,7 @@ scheduleGridRange.value = "week";
 if (homeGridDatePicker) homeGridDatePicker.value = homeGridAnchorDate;
 friends = loadFriends();
 shareSettings = loadShareSettings();
+groups = loadGroups();
 todayLabel.textContent = today.toLocaleDateString(undefined, {
   weekday: "long",
   month: "short",
@@ -714,6 +757,26 @@ taskRepeatModeInput.addEventListener("change", () => {
     setRepeatDayForDate(taskDateInput.value);
   }
 });
+specificRepeatDateInput?.addEventListener("change", () => addTaskSpecificRepeatDate(specificRepeatDateInput.value));
+addSpecificDateButton?.addEventListener("click", () => addTaskSpecificRepeatDate(specificRepeatDateInput?.value));
+specificDateChips?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-specific-date]");
+  if (!button) return;
+  taskSpecificRepeatDates = taskSpecificRepeatDates.filter((date) => date !== button.dataset.removeSpecificDate);
+  renderSpecificRepeatDates();
+});
+specificDatePicker?.addEventListener("click", (event) => {
+  const navButton = event.target.closest("[data-specific-calendar]");
+  if (navButton) {
+    taskSpecificCalendarMonth = addMonths(taskSpecificCalendarMonth, navButton.dataset.specificCalendar === "prev" ? -1 : 1);
+    renderSpecificRepeatDates();
+    return;
+  }
+
+  const dateButton = event.target.closest("[data-specific-date]");
+  if (!dateButton) return;
+  toggleTaskSpecificRepeatDate(dateButton.dataset.specificDate);
+});
 taskTypeInput.addEventListener("change", handleTaskTypeChange);
 customTaskTypeInput.addEventListener("input", updateMeetingLinkControls);
 document.querySelectorAll("[data-meeting-preset]").forEach((button) => {
@@ -766,10 +829,34 @@ editRepeatModeInput.addEventListener("change", () => {
     setEditRepeatDayForDate(editTaskDateInput.value);
   }
 });
+editSpecificRepeatDateInput?.addEventListener("change", () => addEditSpecificRepeatDate(editSpecificRepeatDateInput.value));
+editAddSpecificDateButton?.addEventListener("click", () => addEditSpecificRepeatDate(editSpecificRepeatDateInput?.value));
+editSpecificDateChips?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-specific-date]");
+  if (!button) return;
+  editSpecificRepeatDates = editSpecificRepeatDates.filter((date) => date !== button.dataset.removeSpecificDate);
+  renderEditSpecificRepeatDates();
+});
+editSpecificDatePicker?.addEventListener("click", (event) => {
+  const navButton = event.target.closest("[data-edit-specific-calendar]");
+  if (navButton) {
+    editSpecificCalendarMonth = addMonths(editSpecificCalendarMonth, navButton.dataset.editSpecificCalendar === "prev" ? -1 : 1);
+    renderEditSpecificRepeatDates();
+    return;
+  }
+
+  const dateButton = event.target.closest("[data-edit-specific-date]");
+  if (!dateButton) return;
+  toggleEditSpecificRepeatDate(dateButton.dataset.editSpecificDate);
+});
 editTaskDateInput.addEventListener("change", () => {
   if (editTaskRepeatsInput.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
     setEditRepeatDayForDate(editTaskDateInput.value);
   }
+  if (editSpecificRepeatDates.length === 0 && isISODateString(editTaskDateInput.value)) {
+    editSpecificCalendarMonth = startOfMonth(parseISODate(editTaskDateInput.value));
+  }
+  renderEditSpecificRepeatDates();
 });
 homeWidgetAddButton?.addEventListener("click", toggleHomeWidgetPicker);
 homeWidgetControls?.addEventListener("click", handleHomeWidgetToggle);
@@ -806,6 +893,10 @@ friendAddForm?.addEventListener("submit", addFriend);
 refreshFriendsButton?.addEventListener("click", refreshFriends);
 friendsList?.addEventListener("click", handleFriendListAction);
 friendDetailPanel?.addEventListener("click", handleFriendDetailAction);
+groupCreateForm?.addEventListener("submit", createGroup);
+groupsList?.addEventListener("submit", handleGroupListSubmit);
+groupsList?.addEventListener("click", handleGroupListAction);
+groupsList?.addEventListener("change", handleGroupListChange);
 copyFriendLinkButton?.addEventListener("click", copyFriendShareLink);
 shareFriendLinkButton?.addEventListener("click", shareFriendProfile);
 friendShareLinkInput?.addEventListener("click", () => friendShareLinkInput.select());
@@ -845,6 +936,10 @@ taskDateInput.addEventListener("change", () => {
   if (taskRepeatsInput.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
     setRepeatDayForDate(taskDateInput.value);
   }
+  if (taskSpecificRepeatDates.length === 0 && isISODateString(taskDateInput.value)) {
+    taskSpecificCalendarMonth = startOfMonth(parseISODate(taskDateInput.value));
+  }
+  renderSpecificRepeatDates();
 });
 
 taskForm.addEventListener("submit", (event) => {
@@ -857,10 +952,14 @@ taskForm.addEventListener("submit", (event) => {
   const taskType = getSubmittedTaskType(formData);
   const itemKind = normalizeItemKind(formData.get("itemKind"));
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(formData.get("timerMode"));
+  const isAllDay = timerMode === "all-day";
   const inviteRecipients = parseInviteRecipients(formData.get("inviteEmails"));
   const inviteEmails = parseInviteEmails(inviteRecipients);
   const repeatMode = repeats ? getRepeatModeForItemKind(itemKind, formData.get("repeatMode")) : "weekly";
   const selectedRepeatDays = repeats ? getSelectedRepeatDays() : [];
+  const selectedSpecificDates = repeats && repeatMode === "specific"
+    ? normalizeSpecificRepeatDates(taskSpecificRepeatDates, startDate)
+    : [];
   const repeatIntervalDays = repeats && repeatMode === "interval"
     ? normalizeRepeatIntervalDays(formData.get("repeatIntervalDays"))
     : 1;
@@ -870,9 +969,9 @@ taskForm.addEventListener("submit", (event) => {
     itemKind,
     title: formData.get("title").trim(),
     date: startDate,
-    time: formData.get("time"),
+    time: isAllDay ? "00:00" : formData.get("time"),
     endTime: itemKind === "reminder" ? normalizeOptionalEndTime(formData.get("endTime")) : "",
-    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(formData.get("duration")),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(formData.get("duration")),
     timerMode,
     type: taskType,
     priority: normalizePriority(formData.get("priority")),
@@ -883,6 +982,7 @@ taskForm.addEventListener("submit", (event) => {
     repeatIntervalDays,
     repeatEndDate,
     repeatDays: repeats ? selectedRepeatDays : [],
+    repeatSpecificDates: repeats ? selectedSpecificDates : [],
     completedDates: [],
     inviteEmails,
     inviteLabels: inviteRecipients,
@@ -891,13 +991,16 @@ taskForm.addEventListener("submit", (event) => {
     createdAt: new Date().toISOString(),
   };
 
-  if (!task.title || !task.date || !task.time || !task.type) {
+  if (!task.title || !task.date || (!isAllDay && !task.time) || !task.type) {
     if (!task.type) customTaskTypeInput.focus();
     return;
   }
 
   if (task.repeats && task.repeatMode === "weekly" && task.repeatDays.length === 0) {
     task.repeatDays = [weekdayForISODate(task.date)];
+  }
+  if (task.repeats && task.repeatMode === "specific" && task.repeatSpecificDates.length === 0) {
+    task.repeatSpecificDates = [task.date];
   }
 
   saveCustomTaskType(task.type);
@@ -936,6 +1039,8 @@ function handleTaskAction(event) {
   }
 
   if (button.dataset.action === "complete-reminder") {
+    const sourceTask = tasks.find((task) => task.id === taskId);
+    if (!sourceTask || !isReminderItem(sourceTask)) return;
     tasks = tasks.map((task) => markTaskComplete(task, taskId, occurrenceDate, 0, 0));
     clearActiveTimerFor(taskId, occurrenceDate);
   }
@@ -944,7 +1049,7 @@ function handleTaskAction(event) {
     if (activeTimer && !isActiveTimerFor({ id: taskId, occurrenceDate })) return;
 
     const sourceTask = tasks.find((task) => task.id === taskId);
-    if (!sourceTask || isReminderItem(sourceTask)) return;
+    if (!sourceTask || isReminderItem(sourceTask) || isAllDayTask(sourceTask)) return;
     const timerMode = getTaskTimerMode(sourceTask);
     activeTimer = {
       taskId,
@@ -1132,7 +1237,7 @@ overlapAlert.addEventListener("click", (event) => {
 initializeCloudAuth();
 render();
 setInterval(refreshTopStreakStatus, 60 * 1000);
-setInterval(updateScheduleListTimelineCurrentTime, 60 * 1000);
+setInterval(updateScheduleCurrentTimeIndicators, 60 * 1000);
 
 function applyStartupQuote() {
   if (!startupQuote || STARTUP_QUOTES.length === 0) return;
@@ -1249,7 +1354,14 @@ function buildScheduleOccurrences() {
 
       return occurrences;
     })
-    .sort((a, b) => `${a.occurrenceDate}T${a.time}`.localeCompare(`${b.occurrenceDate}T${b.time}`));
+    .sort(compareScheduleOccurrences);
+}
+
+function compareScheduleOccurrences(first, second) {
+  return first.occurrenceDate.localeCompare(second.occurrenceDate)
+    || Number(isAllDayTask(second)) - Number(isAllDayTask(first))
+    || timeToMinutes(first.time) - timeToMinutes(second.time)
+    || String(first.title).localeCompare(String(second.title));
 }
 
 function getScheduleOccurrenceWindow() {
@@ -1270,6 +1382,8 @@ function buildMissedOccurrences() {
   const missed = [];
 
   tasks.forEach((task) => {
+    if (isAllDayTask(task)) return;
+
     if (!task.repeats) {
       const taskDate = parseISODate(task.date);
       const occurrence = createOccurrence(task, task.date);
@@ -1301,10 +1415,16 @@ function doesTaskRepeatOnDate(task, day) {
   if (day < taskStart) return false;
   const repeatEndDate = normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date);
   if (repeatEndDate && day > parseISODate(repeatEndDate)) return false;
+  const repeatMode = getTaskRepeatModeValue(task);
+
+  if (repeatMode === "specific") {
+    return normalizeSpecificRepeatDates(task.repeatSpecificDates, task.date).includes(toDateInputValue(day));
+  }
+
   const repeatDays = normalizeRepeatDays(task.repeatDays);
   const matchesWeeklyDay = repeatDays.includes(day.getDay());
 
-  if (getTaskRepeatModeValue(task) === "interval") {
+  if (repeatMode === "interval") {
     const daysSinceStart = getDaysBetween(taskStart, day);
     const matchesInterval = daysSinceStart % normalizeRepeatIntervalDays(task.repeatIntervalDays) === 0;
     return matchesInterval || matchesWeeklyDay;
@@ -1314,7 +1434,9 @@ function doesTaskRepeatOnDate(task, day) {
 }
 
 function getTaskRepeatModeValue(task) {
-  return task?.repeatMode === "interval" ? "interval" : "weekly";
+  if (task?.repeatMode === "interval") return "interval";
+  if (task?.repeatMode === "specific") return "specific";
+  return "weekly";
 }
 
 function getDaysBetween(startDate, endDate) {
@@ -1326,6 +1448,8 @@ function getDaysBetween(startDate, endDate) {
 function buildCompletedHistory() {
   return tasks
     .flatMap((task) => {
+      if (isAllDayTask(task)) return [];
+
       if (!task.repeats) {
         return task.done ? [createOccurrence(task, task.date)] : [];
       }
@@ -1341,7 +1465,7 @@ function createOccurrence(task, date) {
   const skippedDates = Array.isArray(task.skippedDates) ? task.skippedDates : [];
   const earnedPointsByDate = task.earnedPointsByDate ?? {};
   const actualMinutesByDate = task.actualMinutesByDate ?? {};
-  const done = task.repeats ? completedDates.includes(date) : Boolean(task.done);
+  const done = isAllDayTask(task) ? false : task.repeats ? completedDates.includes(date) : Boolean(task.done);
   const earnedPoints = task.repeats ? earnedPointsByDate[date] : task.earnedPoints;
   const actualMinutes = task.repeats ? actualMinutesByDate[date] : task.actualMinutes;
 
@@ -1361,15 +1485,17 @@ function renderTodaySummary(occurrences) {
   const todaysTasks = occurrences
     .filter((task) => task.occurrenceDate === todayISO && !task.skipped)
     .sort((first, second) => timeToMinutes(first.time) - timeToMinutes(second.time));
-  const totalMinutes = todaysTasks.reduce((total, task) => total + getScheduleProgressWeight(task), 0);
-  const completedMinutes = todaysTasks
+  const actionableTasks = todaysTasks.filter((task) => !isAllDayTask(task));
+  const allDayCount = todaysTasks.length - actionableTasks.length;
+  const totalMinutes = actionableTasks.reduce((total, task) => total + getScheduleProgressWeight(task), 0);
+  const completedMinutes = actionableTasks
     .filter((task) => task.done)
     .reduce((total, task) => total + getScheduleProgressWeight(task), 0);
   const progressPercent = totalMinutes > 0
     ? Math.round((completedMinutes / totalMinutes) * 100)
     : 0;
 
-  todayCount.textContent = `${todaysTasks.length} task${todaysTasks.length === 1 ? "" : "s"}`;
+  todayCount.textContent = `${actionableTasks.length} task${actionableTasks.length === 1 ? "" : "s"}${allDayCount ? ` + ${allDayCount} all-day` : ""}`;
   todayProgressPercent.textContent = `${progressPercent}%`;
   todayStatusChip.textContent = `${progressPercent}%`;
   todayProgressRing.style.setProperty("--today-progress", `${progressPercent * 3.6}deg`);
@@ -1381,7 +1507,12 @@ function renderTodaySummary(occurrences) {
     return;
   }
 
-  const remaining = todaysTasks.filter((task) => !task.done).length;
+  if (actionableTasks.length === 0 && allDayCount > 0) {
+    todaySummary.textContent = "Only all-day events are scheduled today.";
+    return;
+  }
+
+  const remaining = actionableTasks.filter((task) => !task.done).length;
   todaySummary.textContent =
     remaining === 0
       ? "Everything planned for today is complete."
@@ -1427,7 +1558,7 @@ function createTodayNextTask(todaysTasks) {
 
 function getNextTodayTask(todaysTasks) {
   const unfinished = todaysTasks
-    .filter((task) => !task.done)
+    .filter((task) => !task.done && !isAllDayTask(task))
     .sort((first, second) => timeToMinutes(first.time) - timeToMinutes(second.time));
   if (!unfinished.length) return null;
 
@@ -1524,6 +1655,7 @@ function createXpLightning(gainedXp, target) {
 }
 
 function createTodayDayparts(todaysTasks) {
+  const timedTasks = todaysTasks.filter((task) => !isAllDayTask(task));
   const periods = [
     { label: "Morning", start: 0, end: 12 * 60, tone: "morning" },
     { label: "Afternoon", start: 12 * 60, end: 18 * 60, tone: "afternoon" },
@@ -1532,7 +1664,7 @@ function createTodayDayparts(todaysTasks) {
 
   return periods
     .map((period) => {
-      const periodTasks = todaysTasks.filter((task) => {
+      const periodTasks = timedTasks.filter((task) => {
         const start = timeToMinutes(task.time);
         return start >= period.start && start < period.end;
       });
@@ -2430,7 +2562,7 @@ function getUpcomingOccurrences(occurrences) {
 
   return occurrences
     .filter((task) => {
-      if (task.done || task.skipped) return false;
+      if (task.done || task.skipped || isAllDayTask(task)) return false;
       if (task.occurrenceDate > todayISO) return true;
       return task.occurrenceDate === todayISO && timeToMinutes(task.time) >= currentMinutes;
     })
@@ -2458,15 +2590,21 @@ function setTaskFormCollapsed(isCollapsed) {
 
 function toggleItemKindFields() {
   const isReminder = taskItemKindInput.value === "reminder";
-  const isStopwatch = !isReminder && normalizeTimerMode(taskTimerModeInput.value) === "stopwatch";
+  const timerMode = normalizeTimerMode(taskTimerModeInput.value);
+  const isStopwatch = !isReminder && timerMode === "stopwatch";
+  const isAllDay = !isReminder && timerMode === "all-day";
   if (!taskRepeatsInput.checked) {
     taskRepeatModeInput.value = isReminder ? "interval" : "weekly";
   }
   taskEndTimeField?.classList.toggle("hidden", !isReminder);
   if (!isReminder) taskEndTimeInput.value = "";
+  taskTimeInput.closest("label")?.classList.toggle("hidden", isAllDay);
+  taskTimeInput.toggleAttribute("required", !isAllDay);
+  taskTimeInput.disabled = isAllDay;
+  if (isAllDay) taskTimeInput.value = "";
   setDurationControlState(taskDurationInput, taskDurationField, {
-    hidden: isReminder,
-    disabled: isStopwatch,
+    hidden: isReminder || isAllDay,
+    disabled: isStopwatch || isAllDay,
     hoursInput: taskDurationHoursInput,
     minutesInput: taskDurationMinutesInput,
   });
@@ -2479,15 +2617,21 @@ function toggleItemKindFields() {
 
 function toggleEditItemKindFields() {
   const isReminder = editItemKindInput.value === "reminder";
-  const isStopwatch = !isReminder && normalizeTimerMode(editTaskTimerModeInput.value) === "stopwatch";
+  const timerMode = normalizeTimerMode(editTaskTimerModeInput.value);
+  const isStopwatch = !isReminder && timerMode === "stopwatch";
+  const isAllDay = !isReminder && timerMode === "all-day";
   if (!editTaskRepeatsInput.checked) {
     editRepeatModeInput.value = isReminder ? "interval" : "weekly";
   }
   editTaskEndTimeField?.classList.toggle("hidden", !isReminder);
   if (!isReminder) editTaskEndTimeInput.value = "";
+  editTaskTimeInput.closest("label")?.classList.toggle("hidden", isAllDay);
+  editTaskTimeInput.toggleAttribute("required", !isAllDay);
+  editTaskTimeInput.disabled = isAllDay;
+  if (isAllDay) editTaskTimeInput.value = "";
   setDurationControlState(editTaskDurationInput, editTaskDurationField, {
-    hidden: isReminder,
-    disabled: isStopwatch,
+    hidden: isReminder || isAllDay,
+    disabled: isStopwatch || isAllDay,
     hoursInput: editTaskDurationHoursInput,
     minutesInput: editTaskDurationMinutesInput,
   });
@@ -2526,10 +2670,12 @@ function toggleRepeatControls() {
 
   repeatToggleText.textContent = isReminder ? "Repeat this reminder" : "Repeat this task";
   repeatModeField.classList.toggle("hidden", !repeats);
-  weekdayPicker.classList.toggle("hidden", !repeats);
+  weekdayPicker.classList.toggle("hidden", !repeats || repeatMode !== "weekly");
   repeatIntervalField.classList.toggle("hidden", !repeats || repeatMode !== "interval");
+  specificDatePicker?.classList.toggle("hidden", !repeats || repeatMode !== "specific");
   repeatEndField?.classList.toggle("hidden", !repeats);
   taskRepeatIntervalDaysInput.toggleAttribute("required", repeats && repeatMode === "interval");
+  renderSpecificRepeatDates();
 }
 
 function toggleEditRepeatControls() {
@@ -2539,10 +2685,12 @@ function toggleEditRepeatControls() {
 
   editRepeatToggleText.textContent = isReminder ? "Repeat this reminder" : "Repeat this task";
   editRepeatModeField.classList.toggle("hidden", !repeats);
-  editWeekdayPicker.classList.toggle("hidden", !repeats);
+  editWeekdayPicker.classList.toggle("hidden", !repeats || repeatMode !== "weekly");
   editRepeatIntervalField.classList.toggle("hidden", !repeats || repeatMode !== "interval");
+  editSpecificDatePicker?.classList.toggle("hidden", !repeats || repeatMode !== "specific");
   editRepeatEndField?.classList.toggle("hidden", !repeats);
   editRepeatIntervalDaysInput.toggleAttribute("required", repeats && repeatMode === "interval");
+  renderEditSpecificRepeatDates();
 }
 
 function getTaskRepeatMode() {
@@ -2554,7 +2702,7 @@ function getEditRepeatMode() {
 }
 
 function getRepeatModeForItemKind(itemKind, repeatMode, fallback = "interval") {
-  if (repeatMode === "weekly" || repeatMode === "interval") return repeatMode;
+  if (repeatMode === "weekly" || repeatMode === "interval" || repeatMode === "specific") return repeatMode;
   return fallback === "weekly" ? "weekly" : "interval";
 }
 
@@ -2566,6 +2714,17 @@ function normalizeRepeatDays(days) {
   return Array.isArray(days)
     ? [...new Set(days.map(Number).filter((day) => day >= 0 && day <= 6))].sort((a, b) => a - b)
     : [];
+}
+
+function normalizeSpecificRepeatDates(dates, startDate = "") {
+  const start = isISODateString(startDate) ? parseISODate(startDate) : null;
+  const normalizedDates = Array.isArray(dates)
+    ? dates
+    : String(dates ?? "").split(",");
+
+  return [...new Set(normalizedDates.map((date) => String(date).trim()).filter(isISODateString))]
+    .filter((date) => !start || parseISODate(date) >= start)
+    .sort();
 }
 
 function refreshTopStreakStatus() {
@@ -3647,6 +3806,7 @@ function openEditTask(taskId, occurrenceDate) {
   editRepeatIntervalDaysInput.value = String(normalizeRepeatIntervalDays(task.repeatIntervalDays));
   editRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date);
   setEditRepeatDays(task.repeats ? task.repeatDays : []);
+  setEditSpecificRepeatDates(task.repeats ? task.repeatSpecificDates : []);
   toggleEditItemKindFields();
   updateEditMeetingLinkControls();
 
@@ -3682,24 +3842,29 @@ function saveEditedTask(event) {
   const occurrenceDate = editOccurrenceDateInput.value;
   const title = editTaskNameInput.value.trim();
   const date = editTaskDateInput.value;
-  const time = editTaskTimeInput.value;
   const itemKind = normalizeItemKind(editItemKindInput.value);
   const endTime = itemKind === "reminder" ? normalizeOptionalEndTime(editTaskEndTimeInput.value) : "";
   const type = normalizeTaskTypeName(editTaskTypeInput.value);
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(editTaskTimerModeInput.value);
-  const duration = itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(editTaskDurationInput.value);
+  const isAllDay = timerMode === "all-day";
+  const time = isAllDay ? "00:00" : editTaskTimeInput.value;
+  const duration = itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(editTaskDurationInput.value);
   const inviteRecipients = parseInviteRecipients(editTaskInviteEmailsInput.value);
   const inviteEmails = parseInviteEmails(inviteRecipients);
   const repeats = editTaskRepeatsInput.checked;
   const repeatMode = repeats ? getRepeatModeForItemKind(itemKind, editRepeatModeInput.value) : "weekly";
   const repeatDays = repeats ? getEditRepeatDays() : [];
+  const repeatSpecificDates = repeats && repeatMode === "specific"
+    ? getEditSpecificRepeatDates()
+    : [];
   const repeatIntervalDays = repeats && repeatMode === "interval"
     ? normalizeRepeatIntervalDays(editRepeatIntervalDaysInput.value)
     : 1;
   const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(editRepeatEndDateInput.value, date) : "";
   const nextRepeatDays = repeats && repeatMode === "weekly" && repeatDays.length === 0 ? [weekdayForISODate(date)] : repeatDays;
+  const nextSpecificDates = repeats && repeatMode === "specific" && repeatSpecificDates.length === 0 ? [date] : repeatSpecificDates;
 
-  if (!title || !date || !time || !type) return;
+  if (!title || !date || (!isAllDay && !time) || !type) return;
 
   tasks = tasks.map((task) => {
     if (task.id !== taskId) return task;
@@ -3725,6 +3890,7 @@ function saveEditedTask(event) {
       repeatIntervalDays,
       repeatEndDate,
       repeatDays: repeats ? nextRepeatDays : [],
+      repeatSpecificDates: repeats ? nextSpecificDates : [],
       done: repeats ? false : task.repeats ? false : Boolean(task.done),
       skipped: repeats ? false : Boolean(task.skipped),
       completedDates: repeats ? (Array.isArray(task.completedDates) ? task.completedDates : []) : [],
@@ -3735,7 +3901,7 @@ function saveEditedTask(event) {
   });
 
   if (activeTimer?.taskId === taskId && activeTimer?.occurrenceDate === occurrenceDate) {
-    if (itemKind === "reminder") {
+    if (itemKind === "reminder" || isAllDay) {
       clearActiveTimer();
     } else {
       activeTimer = {
@@ -3818,6 +3984,7 @@ function createMissedTaskCard(task) {
 
 function createTaskCard(task) {
   const isReminder = isReminderItem(task);
+  const isAllDay = isAllDayTask(task);
   const date = new Date(`${task.occurrenceDate}T${task.time}`);
   const dayLabel = date.toLocaleDateString(undefined, {
     weekday: "short",
@@ -3834,7 +4001,7 @@ function createTaskCard(task) {
   const streakChip = createStreakChip(task.type);
   const typeStyle = createTypeStyleAttribute(task.type);
   const isTimerActive = isActiveTimerFor(task);
-  const canStartTimer = !isReminder && !task.done && (!activeTimer || isTimerActive);
+  const canStartTimer = !isReminder && !isAllDay && !task.done && (!activeTimer || isTimerActive);
   const timingLabel = getTaskTimingLabel(task);
   const endTimeChip = createEndTimeChip(task);
   const meetingLinkChip = createMeetingLinkChip(task);
@@ -3846,7 +4013,7 @@ function createTaskCard(task) {
       </div>
     `
     : "";
-  const timerButton = task.done
+  const timerButton = isAllDay || task.done
     ? ""
     : isReminder
       ? `<button class="icon-button start" type="button" data-action="complete-reminder" title="Mark reminder done" aria-label="Mark reminder done">Done</button>`
@@ -3865,15 +4032,15 @@ function createTaskCard(task) {
     : "";
 
   return `
-    <article class="task-card ${task.done ? "done" : ""}" data-task-id="${task.id}" data-occurrence-date="${task.occurrenceDate}" ${typeStyle}>
+    <article class="task-card ${isAllDay ? "all-day-card" : ""} ${task.done ? "done" : ""}" data-task-id="${task.id}" data-occurrence-date="${task.occurrenceDate}" ${typeStyle}>
       <div class="time-block">
-        <strong>${timeLabel}</strong>
-        <span>${isReminder ? "Set time" : "Estimate"} &middot; ${dayLabel}</span>
+        <strong>${isAllDay ? "All day" : timeLabel}</strong>
+        <span>${isAllDay ? "Event" : isReminder ? "Set time" : "Estimate"} &middot; ${dayLabel}</span>
       </div>
       <div>
         <div class="task-title">${escapeHTML(task.title)}</div>
         ${notes}
-        ${timerPanel}
+        ${isAllDay ? `<p class="all-day-note">Runs across the whole day.</p>` : timerPanel}
         <div class="task-meta">
           <span class="chip">${escapeHTML(timingLabel)}</span>
           ${endTimeChip}
@@ -3884,7 +4051,7 @@ function createTaskCard(task) {
           ${meetingLinkChip}
         </div>
       </div>
-      <div class="task-actions">
+      <div class="task-actions ${isAllDay ? "hidden" : ""}">
         ${timerButton}
         ${undoButton}
         <button class="icon-button delete" type="button" data-action="delete" title="Delete" aria-label="Delete">
@@ -3898,12 +4065,7 @@ function createTaskCard(task) {
 function renderScheduleListTimeline(occurrences) {
   if (!scheduleListTimeline) return;
 
-  const shouldShowTimeline = Boolean(
-    featureSettings.listTimeline
-      && scheduleView === "list"
-      && scheduleAnchorDate === todayISO
-      && occurrences.length > 0,
-  );
+  const shouldShowTimeline = false;
   scheduleListTimeline.classList.toggle("hidden", !shouldShowTimeline);
   scheduleListLayout?.classList.toggle("timeline-enabled", shouldShowTimeline);
 
@@ -3913,7 +4075,7 @@ function renderScheduleListTimeline(occurrences) {
   }
 
   const markers = occurrences
-    .filter((task) => !task.skipped)
+    .filter((task) => !task.skipped && !isAllDayTask(task))
     .map((task) => {
       const typeStyle = getTaskTypeStyle(task.type);
       const top = clamp((timeToMinutes(task.time) / (24 * 60)) * 100, 1, 99);
@@ -3943,6 +4105,12 @@ function renderScheduleListTimeline(occurrences) {
   updateScheduleListTimelineCurrentTime();
 }
 
+function updateScheduleCurrentTimeIndicators() {
+  updateScheduleListTimelineCurrentTime();
+  updateGridCurrentTimeDots(scheduleGrid);
+  updateGridCurrentTimeDots(homeDayGrid);
+}
+
 function updateScheduleListTimelineCurrentTime() {
   if (!scheduleListTimeline || scheduleListTimeline.classList.contains("hidden")) return;
 
@@ -3953,6 +4121,28 @@ function updateScheduleListTimelineCurrentTime() {
 
   const label = scheduleListTimeline.querySelector("[data-list-timeline-current-label]");
   if (label) label.textContent = formatTimeFromMinutes(currentMinutes);
+}
+
+function updateGridCurrentTimeDots(gridRoot) {
+  gridRoot?.querySelectorAll(".grid-current-time-dot").forEach((dot) => {
+    const timeline = dot.closest(".day-timeline");
+    if (!timeline) return;
+
+    const bounds = {
+      start: Number(timeline.dataset.startMinute) || 0,
+      end: Number(timeline.dataset.endMinute) || 24 * 60,
+      totalMinutes: Number(timeline.dataset.totalMinutes) || 1,
+    };
+    bounds.segments = parseTimelineSegments(timeline.dataset.timelineSegments, bounds.totalMinutes, bounds.start, bounds.end);
+
+    const currentMinutes = getCurrentDayMinute();
+    const segments = getTimelineSegments(bounds);
+    const isVisible = segments.some((segment) => currentMinutes >= segment.start && currentMinutes <= segment.end);
+    dot.classList.toggle("hidden", !isVisible);
+    if (isVisible) {
+      dot.style.setProperty("--current-grid-time-top", `${getTimelineMinutePercent(currentMinutes, bounds).toFixed(2)}%`);
+    }
+  });
 }
 
 function createCompletedTaskCard(task) {
@@ -4064,7 +4254,7 @@ function createMonthDayCell(isoDate, dayTasks, visibleMonth) {
     .join("");
   const preview = previewTasks.length
     ? previewTasks
-        .map((task) => `<small>${escapeHTML(formatTimeFromMinutes(timeToMinutes(task.time)))} ${escapeHTML(task.title)}</small>`)
+        .map((task) => `<small>${escapeHTML(isAllDayTask(task) ? "All day" : formatTimeFromMinutes(timeToMinutes(task.time)))} ${escapeHTML(task.title)}</small>`)
         .join("")
     : "<em>No tasks</em>";
 
@@ -4087,10 +4277,12 @@ function createDayScheduleGrid(occurrences, options = {}) {
   const selectedDate = options.anchorDate ?? scheduleAnchorDate;
   const tasksByDate = groupTasksByDate(occurrences);
   const dayTasks = tasksByDate.get(selectedDate) ?? [];
-  const bounds = getDayTimelineBounds(dayTasks, {
+  const timedTasks = dayTasks.filter((task) => !isAllDayTask(task));
+  const bounds = getDayTimelineBounds(timedTasks, {
     expandForMove: options.context !== "home" && shouldExpandGridTimelineForMove(),
+    currentMinute: getGridCurrentTimeMinuteForDate(selectedDate, options),
   });
-  const timelineItems = assignTimelineLanes(dayTasks);
+  const timelineItems = assignTimelineLanes(timedTasks);
   const zoom = options.zoom ?? scheduleGridZoom;
 
   return `
@@ -4099,8 +4291,12 @@ function createDayScheduleGrid(occurrences, options = {}) {
         <h3>${formatDateHeading(selectedDate)}</h3>
         <span>${dayTasks.length} task${dayTasks.length === 1 ? "" : "s"}</span>
       </div>
+      ${createAllDayGridStrip(dayTasks)}
       <div class="day-timeline" data-start-minute="${bounds.start}" data-end-minute="${bounds.end}" data-total-minutes="${bounds.totalMinutes}" data-timeline-segments="${serializeTimelineSegments(bounds)}" style="--timeline-height: ${getTimelineHeight(bounds.totalMinutes, zoom)}px;">
-        <div class="time-labels">${createTimelineLabels(bounds)}</div>
+        <div class="time-labels">
+          ${createTimelineLabels(bounds)}
+          ${createGridCurrentTimeDot(selectedDate, bounds, options)}
+        </div>
         <div class="timeline-board" data-grid-date="${selectedDate}">
           ${createTimelineLines(bounds)}
           ${timelineItems.map((item) => createTimelineTask(item, bounds)).join("")}
@@ -4114,8 +4310,10 @@ function createWeekScheduleGrid(occurrences, options = {}) {
   const weekDates = getScheduleWeekDates(options.anchorDate ?? scheduleAnchorDate);
   const tasksByDate = groupTasksByDate(occurrences);
   const allWeekTasks = weekDates.flatMap((date) => tasksByDate.get(date) ?? []);
-  const bounds = getDayTimelineBounds(allWeekTasks, {
+  const timedWeekTasks = allWeekTasks.filter((task) => !isAllDayTask(task));
+  const bounds = getDayTimelineBounds(timedWeekTasks, {
     expandForMove: options.context !== "home" && shouldExpandGridTimelineForMove(),
+    currentMinute: weekDates.includes(todayISO) ? getGridCurrentTimeMinuteForDate(todayISO, options) : null,
   });
   const zoom = options.zoom ?? scheduleGridZoom;
   const dateLabels = weekDates
@@ -4124,7 +4322,7 @@ function createWeekScheduleGrid(occurrences, options = {}) {
   const dayColumns = weekDates
     .map((date) => {
       const dayTasks = tasksByDate.get(date) ?? [];
-      const timelineItems = assignTimelineLanes(dayTasks);
+      const timelineItems = assignTimelineLanes(dayTasks.filter((task) => !isAllDayTask(task)));
 
       return `
         <div class="week-day-column ${date === todayISO ? "today" : ""}" data-grid-date="${date}">
@@ -4144,8 +4342,12 @@ function createWeekScheduleGrid(occurrences, options = {}) {
         <span></span>
         ${dateLabels}
       </div>
+      ${createAllDayWeekStrip(weekDates, tasksByDate)}
       <div class="day-timeline week-timeline" data-start-minute="${bounds.start}" data-end-minute="${bounds.end}" data-total-minutes="${bounds.totalMinutes}" data-timeline-segments="${serializeTimelineSegments(bounds)}" style="--timeline-height: ${getTimelineHeight(bounds.totalMinutes, zoom)}px;">
-        <div class="time-labels">${createTimelineLabels(bounds)}</div>
+        <div class="time-labels">
+          ${createTimelineLabels(bounds)}
+          ${weekDates.includes(todayISO) ? createGridCurrentTimeDot(todayISO, bounds, options) : ""}
+        </div>
         <div class="timeline-board week-board">
           ${createTimelineLines(bounds)}
           ${dayColumns}
@@ -4155,8 +4357,74 @@ function createWeekScheduleGrid(occurrences, options = {}) {
   `;
 }
 
+function createGridCurrentTimeDot(date, bounds, options = {}) {
+  const currentMinute = getGridCurrentTimeMinuteForDate(date, options);
+  if (!Number.isFinite(currentMinute)) return "";
+
+  const segments = getTimelineSegments(bounds);
+  const isVisible = segments.some((segment) => currentMinute >= segment.start && currentMinute <= segment.end);
+  if (!isVisible) return "";
+
+  const top = getTimelineMinutePercent(currentMinute, bounds);
+  return `<span class="grid-current-time-dot" style="--current-grid-time-top: ${top.toFixed(2)}%;" aria-hidden="true"></span>`;
+}
+
+function getGridCurrentTimeMinuteForDate(date, options = {}) {
+  if (date !== todayISO) return null;
+  if (options.context !== "home" && scheduleView !== "grid") return null;
+  return getCurrentDayMinute();
+}
+
+function createAllDayGridStrip(dayTasks) {
+  const allDayTasks = dayTasks.filter((task) => isAllDayTask(task) && !task.skipped);
+  if (allDayTasks.length === 0) return "";
+
+  return `
+    <div class="all-day-grid-strip">
+      <span>All day</span>
+      <div>${allDayTasks.map(createAllDayGridPill).join("")}</div>
+    </div>
+  `;
+}
+
+function createAllDayWeekStrip(weekDates, tasksByDate) {
+  const hasAllDayTasks = weekDates.some((date) =>
+    (tasksByDate.get(date) ?? []).some((task) => isAllDayTask(task) && !task.skipped),
+  );
+  if (!hasAllDayTasks) return "";
+
+  const dayCells = weekDates
+    .map((date) => {
+      const allDayTasks = (tasksByDate.get(date) ?? []).filter((task) => isAllDayTask(task) && !task.skipped);
+      return `<div class="all-day-week-cell ${date === todayISO ? "today" : ""}">${allDayTasks.map(createAllDayGridPill).join("")}</div>`;
+    })
+    .join("");
+
+  return `
+    <div class="all-day-week-strip">
+      <span>All day</span>
+      ${dayCells}
+    </div>
+  `;
+}
+
+function createAllDayGridPill(task) {
+  const typeStyle = getTaskTypeStyle(task.type);
+  return `
+    <article
+      class="all-day-grid-pill"
+      data-task-id="${task.id}"
+      data-occurrence-date="${task.occurrenceDate}"
+      style="--type-color: ${typeStyle.color}; --type-bg: ${typeStyle.bg};"
+      title="${escapeHTML(task.title)}"
+    >
+      ${escapeHTML(task.title)}
+    </article>
+  `;
+}
+
 function renderOverlapAlert(occurrences) {
-  const overlaps = findOverlaps(occurrences.filter((task) => !task.done));
+  const overlaps = findOverlaps(occurrences.filter((task) => !task.done && !isAllDayTask(task)));
 
   if (overlaps.length === 0) {
     currentOverlapSignature = "";
@@ -4217,7 +4485,7 @@ function createOverlapSignature(overlaps) {
 }
 
 function createOverlapTaskKey(task) {
-  return `${task.id}:${task.occurrenceDate}:${task.time}:${getVisualTaskDuration(task)}`;
+  return `${task.id}:${task.occurrenceDate}:${task.time}:${getOverlapTimeRange(task).end}`;
 }
 
 function getGridOccurrences(occurrences, options = {}) {
@@ -4260,14 +4528,17 @@ function findOverlaps(occurrences) {
 
   tasksByDate.forEach((dayTasks) => {
     const sortedTasks = dayTasks
-      .map((task) => ({ task, range: getTaskTimeRange(task) }))
+      .map((task) => ({ task, range: getOverlapTimeRange(task) }))
       .sort((a, b) => a.range.start - b.range.start);
 
     for (let firstIndex = 0; firstIndex < sortedTasks.length; firstIndex += 1) {
       for (let secondIndex = firstIndex + 1; secondIndex < sortedTasks.length; secondIndex += 1) {
         const first = sortedTasks[firstIndex];
         const second = sortedTasks[secondIndex];
-        if (second.range.start >= first.range.end) break;
+        if (!doTaskRangesOverlap(first, second)) {
+          if (!isPointReminder(first.task) && second.range.start >= first.range.end) break;
+          continue;
+        }
 
         overlaps.push({ first: first.task, second: second.task });
       }
@@ -4275,6 +4546,15 @@ function findOverlaps(occurrences) {
   });
 
   return overlaps;
+}
+
+function doTaskRangesOverlap(first, second) {
+  if (isPointReminder(first.task) || isPointReminder(second.task)) {
+    return first.task.occurrenceDate === second.task.occurrenceDate
+      && first.range.start === second.range.start;
+  }
+
+  return second.range.start < first.range.end && first.range.start < second.range.end;
 }
 
 function groupTasksByDate(occurrences) {
@@ -4330,6 +4610,7 @@ function assignTimelineLanes(dayTasks) {
 function createTimelineTask(item, bounds, extraClass = "") {
   const { task, range, lane, laneCount } = item;
   const isReminder = isReminderItem(task);
+  const pointReminder = isPointReminder(task);
   const durationClass = getTimelineDurationClass(task);
   const top = getTimelineMinutePercent(range.start, bounds);
   const height = getTimelineRangeHeightPercent(range.start, range.end, bounds);
@@ -4340,7 +4621,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
 
   return `
     <article
-      class="timeline-task ${extraClass} ${isReminder ? "reminder-task" : ""} ${durationClass} ${task.done ? "done" : ""}"
+      class="timeline-task ${extraClass} ${isReminder ? "reminder-task" : ""} ${pointReminder ? "point-reminder" : ""} ${durationClass} ${task.done ? "done" : ""}"
       data-task-id="${task.id}"
       data-occurrence-date="${task.occurrenceDate}"
       style="--task-top: ${top.toFixed(2)}%; --task-height: ${height.toFixed(2)}%; --task-left: ${laneLeft.toFixed(2)}%; --task-width: ${laneWidth.toFixed(2)}%; --type-color: ${typeStyle.color}; --type-bg: ${typeStyle.bg};"
@@ -4392,11 +4673,16 @@ function getDayTimelineBounds(dayTasks, options = {}) {
     return createTimelineBounds([{ start: 0, end: 24 * 60 }]);
   }
 
+  const currentTimeSegment = createCurrentTimeTimelineSegment(options.currentMinute);
+
   if (dayTasks.length === 0) {
-    return createTimelineBounds([{ start: 8 * 60, end: 12 * 60 }]);
+    return createTimelineBounds(currentTimeSegment ? [currentTimeSegment] : [{ start: 8 * 60, end: 12 * 60 }]);
   }
 
-  return createTimelineBounds(createOccupiedTimelineSegments(dayTasks));
+  return createTimelineBounds([
+    ...createOccupiedTimelineSegments(dayTasks),
+    ...(currentTimeSegment ? [currentTimeSegment] : []),
+  ]);
 }
 
 function shouldExpandGridTimelineForMove() {
@@ -4425,7 +4711,8 @@ function createOccupiedTimelineSegments(dayTasks) {
 }
 
 function createTimelineBounds(rawSegments) {
-  const fallbackSegments = rawSegments.length > 0 ? rawSegments : [{ start: 8 * 60, end: 12 * 60 }];
+  const normalizedSegments = normalizeTimelineSegments(rawSegments);
+  const fallbackSegments = normalizedSegments.length > 0 ? normalizedSegments : [{ start: 8 * 60, end: 12 * 60 }];
   let visualCursor = 0;
   const segments = fallbackSegments.map((segment, index) => {
     if (index > 0) visualCursor += GRID_COLLAPSED_GAP_MINUTES;
@@ -4447,6 +4734,34 @@ function createTimelineBounds(rawSegments) {
     totalMinutes: Math.max(visualCursor, 60),
     segments,
   };
+}
+
+function createCurrentTimeTimelineSegment(minute) {
+  if (!Number.isFinite(minute)) return null;
+
+  const start = clamp(Math.floor(minute / 60) * 60, 0, 23 * 60);
+  const end = clamp(Math.ceil((minute + 1) / 60) * 60, start + GRID_MOVE_SNAP_MINUTES, 24 * 60);
+  return { start, end };
+}
+
+function normalizeTimelineSegments(rawSegments) {
+  return rawSegments
+    .map((segment) => ({
+      start: clamp(Number(segment.start), 0, 24 * 60),
+      end: clamp(Number(segment.end), 0, 24 * 60),
+    }))
+    .filter((segment) => Number.isFinite(segment.start) && Number.isFinite(segment.end) && segment.end > segment.start)
+    .sort((first, second) => first.start - second.start || first.end - second.end)
+    .reduce((segments, segment) => {
+      const previous = segments.at(-1);
+      if (previous && segment.start <= previous.end) {
+        previous.end = Math.max(previous.end, segment.end);
+      } else {
+        segments.push({ ...segment });
+      }
+
+      return segments;
+    }, []);
 }
 
 function getTimelineSegments(bounds) {
@@ -4541,6 +4856,10 @@ function mapTimelineMinuteToActualMinute(visualMinute, bounds) {
 }
 
 function getTaskTimeRange(task) {
+  if (isAllDayTask(task)) {
+    return { start: 0, end: 0 };
+  }
+
   const start = timeToMinutes(task.time);
   return {
     start,
@@ -4548,12 +4867,29 @@ function getTaskTimeRange(task) {
   };
 }
 
+function getOverlapTimeRange(task) {
+  const start = isAllDayTask(task) ? 0 : timeToMinutes(task.time);
+
+  if (isPointReminder(task)) {
+    return { start, end: start };
+  }
+
+  return getTaskTimeRange(task);
+}
+
 function timeToMinutes(time) {
   const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
 }
 
+function getCurrentDayMinute() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
 function formatTimeRange(task) {
+  if (isAllDayTask(task)) return "All day";
+
   const range = getTaskTimeRange(task);
   if (isReminderItem(task)) {
     const endTime = normalizeOptionalEndTime(task.endTime);
@@ -4845,6 +5181,7 @@ function applySelectedTaskTemplate() {
   taskRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(template.repeatEndDate, taskDateInput.value);
   taskMeetingLinkInput.value = normalizeMeetingLink(template.meetingLink);
   setRepeatDays(template.repeats ? template.repeatDays : []);
+  setSpecificRepeatDates(template.repeats ? template.repeatSpecificDates : []);
 
   if (template.type && !hasTaskType(BUILT_IN_TASK_TYPES, template.type) && !hasTaskType(customTaskTypes, template.type)) {
     saveCustomTaskType(template.type);
@@ -4875,6 +5212,7 @@ function saveCurrentTaskTemplate() {
     repeatIntervalDays: formData.get("repeatIntervalDays"),
     repeatEndDate: formData.get("repeatEndDate"),
     repeatDays: getSelectedRepeatDays(),
+    repeatSpecificDates: getSelectedSpecificRepeatDates(),
   });
 
   if (!template.title) {
@@ -5715,7 +6053,7 @@ function getChartXTicks(dailyStats, days) {
       index,
       label: parseISODate(day.date).toLocaleDateString(undefined, { weekday: "short" }),
     }));
-  }
+}
 
   const tickCount = days === 30 ? 6 : 7;
   const indexes = Array.from({ length: tickCount }, (_, index) =>
@@ -5746,6 +6084,7 @@ function matchesScheduleExtraFilters(task) {
 
 function toggleTaskCompletion(task, taskId, occurrenceDate) {
   if (task.id !== taskId) return task;
+  if (isAllDayTask(task)) return task;
 
   if (!task.repeats) {
     if (!task.done) return { ...task, done: true };
@@ -5776,6 +6115,7 @@ function toggleTaskCompletion(task, taskId, occurrenceDate) {
 
 function markTaskComplete(task, taskId, occurrenceDate, earnedPoints = null, actualMinutes = null) {
   if (task.id !== taskId) return task;
+  if (isAllDayTask(task)) return task;
   const normalizedPoints = normalizeEarnedPoints(earnedPoints, task);
   const normalizedMinutes = normalizeActualMinutes(actualMinutes, task);
 
@@ -5880,22 +6220,27 @@ function createSingleTaskFromOccurrence(task, targetDate, targetTime = task.time
   const isDone = keepCompletion && Boolean(task.done);
   const itemKind = getItemKind(task);
   const timerMode = getTaskTimerMode(task);
+  const isAllDay = timerMode === "all-day";
 
   return {
     id: crypto.randomUUID(),
     itemKind,
     title: task.title,
     date: targetDate,
-    time: targetTime,
+    time: isAllDay ? "00:00" : targetTime,
     endTime: itemKind === "reminder" ? normalizeOptionalEndTime(task.endTime) : "",
-    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(task.duration),
     timerMode,
     type: task.type,
     priority: normalizePriority(task.priority),
     notes: task.notes ?? "",
     meetingLink: isMeetingType(task.type) ? normalizeMeetingLink(task.meetingLink) : "",
     repeats: false,
+    repeatMode: "weekly",
+    repeatIntervalDays: 1,
+    repeatEndDate: "",
     repeatDays: [],
+    repeatSpecificDates: [],
     completedDates: [],
     skippedDates: [],
     done: isDone,
@@ -6140,6 +6485,9 @@ function resetForm() {
   taskRepeatModeInput.value = "weekly";
   taskRepeatIntervalDaysInput.value = "2";
   taskRepeatEndDateInput.value = "";
+  taskSpecificRepeatDates = [];
+  taskSpecificCalendarMonth = startOfMonth(parseISODate(todayISO));
+  renderSpecificRepeatDates();
   customTaskTypeInput.value = "";
   taskInviteEmailsInput.value = "";
   taskMeetingLinkInput.value = "";
@@ -6151,6 +6499,131 @@ function getSelectedRepeatDays() {
   return [...document.querySelectorAll('input[name="repeatDays"]:checked')]
     .map((input) => Number(input.value))
     .sort((a, b) => a - b);
+}
+
+function getSelectedSpecificRepeatDates() {
+  return normalizeSpecificRepeatDates(taskSpecificRepeatDates, taskDateInput.value);
+}
+
+function getEditSpecificRepeatDates() {
+  return normalizeSpecificRepeatDates(editSpecificRepeatDates, editTaskDateInput.value);
+}
+
+function addTaskSpecificRepeatDate(dateValue) {
+  if (!isISODateString(dateValue)) return;
+  taskSpecificRepeatDates = normalizeSpecificRepeatDates([...taskSpecificRepeatDates, dateValue], taskDateInput.value);
+  taskSpecificCalendarMonth = startOfMonth(parseISODate(dateValue));
+  if (specificRepeatDateInput) specificRepeatDateInput.value = "";
+  renderSpecificRepeatDates();
+}
+
+function addEditSpecificRepeatDate(dateValue) {
+  if (!isISODateString(dateValue)) return;
+  editSpecificRepeatDates = normalizeSpecificRepeatDates([...editSpecificRepeatDates, dateValue], editTaskDateInput.value);
+  editSpecificCalendarMonth = startOfMonth(parseISODate(dateValue));
+  if (editSpecificRepeatDateInput) editSpecificRepeatDateInput.value = "";
+  renderEditSpecificRepeatDates();
+}
+
+function toggleTaskSpecificRepeatDate(dateValue) {
+  if (!isISODateString(dateValue)) return;
+  taskSpecificRepeatDates = taskSpecificRepeatDates.includes(dateValue)
+    ? taskSpecificRepeatDates.filter((date) => date !== dateValue)
+    : normalizeSpecificRepeatDates([...taskSpecificRepeatDates, dateValue], taskDateInput.value);
+  renderSpecificRepeatDates();
+}
+
+function toggleEditSpecificRepeatDate(dateValue) {
+  if (!isISODateString(dateValue)) return;
+  editSpecificRepeatDates = editSpecificRepeatDates.includes(dateValue)
+    ? editSpecificRepeatDates.filter((date) => date !== dateValue)
+    : normalizeSpecificRepeatDates([...editSpecificRepeatDates, dateValue], editTaskDateInput.value);
+  renderEditSpecificRepeatDates();
+}
+
+function renderSpecificRepeatDates() {
+  taskSpecificRepeatDates = normalizeSpecificRepeatDates(taskSpecificRepeatDates, taskDateInput.value);
+  if (taskRepeatSpecificDatesInput) taskRepeatSpecificDatesInput.value = taskSpecificRepeatDates.join(",");
+  renderSpecificCalendar({
+    grid: specificCalendarGrid,
+    label: specificCalendarLabel,
+    monthDate: taskSpecificCalendarMonth,
+    selectedDates: taskSpecificRepeatDates,
+    startDate: taskDateInput.value,
+    dateAttribute: "specific-date",
+  });
+  if (specificDateChips) specificDateChips.innerHTML = createSpecificDateChips(taskSpecificRepeatDates);
+}
+
+function renderEditSpecificRepeatDates() {
+  editSpecificRepeatDates = normalizeSpecificRepeatDates(editSpecificRepeatDates, editTaskDateInput.value);
+  if (editRepeatSpecificDatesInput) editRepeatSpecificDatesInput.value = editSpecificRepeatDates.join(",");
+  renderSpecificCalendar({
+    grid: editSpecificCalendarGrid,
+    label: editSpecificCalendarLabel,
+    monthDate: editSpecificCalendarMonth,
+    selectedDates: editSpecificRepeatDates,
+    startDate: editTaskDateInput.value,
+    dateAttribute: "edit-specific-date",
+  });
+  if (editSpecificDateChips) editSpecificDateChips.innerHTML = createSpecificDateChips(editSpecificRepeatDates);
+}
+
+function renderSpecificCalendar({ grid, label, monthDate, selectedDates, startDate, dateAttribute }) {
+  if (!grid || !label) return;
+
+  const safeMonth = startOfMonth(monthDate instanceof Date && !Number.isNaN(monthDate.getTime())
+    ? monthDate
+    : parseISODate(todayISO));
+  const selectedSet = new Set(normalizeSpecificRepeatDates(selectedDates, startDate));
+  const start = isISODateString(startDate) ? parseISODate(startDate) : null;
+  const calendarStart = getWeekStart(safeMonth);
+  const currentMonth = safeMonth.getMonth();
+
+  label.textContent = safeMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  grid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const date = addDays(calendarStart, index);
+    const isoDate = toDateInputValue(date);
+    const isOutsideMonth = date.getMonth() !== currentMonth;
+    const isBeforeStart = start && date < start;
+    const isSelected = selectedSet.has(isoDate);
+    const classes = [
+      "specific-calendar-day",
+      isOutsideMonth ? "outside-month" : "",
+      isoDate === todayISO ? "today" : "",
+      isSelected ? "selected" : "",
+    ].filter(Boolean).join(" ");
+    const disabled = isBeforeStart ? "disabled" : "";
+
+    return `
+      <button class="${classes}" type="button" data-${dateAttribute}="${isoDate}" ${disabled} aria-pressed="${isSelected ? "true" : "false"}">
+        ${date.getDate()}
+      </button>
+    `;
+  }).join("");
+}
+
+function createSpecificDateChips(dates) {
+  return normalizeSpecificRepeatDates(dates)
+    .map((date) => `
+      <button class="specific-date-chip" type="button" data-remove-specific-date="${escapeHTML(date)}" title="Remove ${escapeHTML(formatDateHeading(date))}">
+        ${escapeHTML(formatDateHeading(date))}
+        <span aria-hidden="true">x</span>
+      </button>
+    `)
+    .join("") || `<span class="specific-date-empty">No specific dates selected</span>`;
+}
+
+function setSpecificRepeatDates(dates) {
+  taskSpecificRepeatDates = normalizeSpecificRepeatDates(dates, taskDateInput.value);
+  taskSpecificCalendarMonth = startOfMonth(parseISODate(taskSpecificRepeatDates[0] || taskDateInput.value || todayISO));
+  renderSpecificRepeatDates();
+}
+
+function setEditSpecificRepeatDates(dates) {
+  editSpecificRepeatDates = normalizeSpecificRepeatDates(dates, editTaskDateInput.value);
+  editSpecificCalendarMonth = startOfMonth(parseISODate(editSpecificRepeatDates[0] || editTaskDateInput.value || todayISO));
+  renderEditSpecificRepeatDates();
 }
 
 function setRepeatDayForDate(dateValue) {
@@ -6187,6 +6660,14 @@ function createRepeatLabel(taskOrRepeatDays) {
       ? ` + ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}`
       : "";
     return `${repeatDays.length === 7 ? "Every day" : `${intervalLabel}${weeklyLabel}`}${endLabel}`;
+  }
+
+  if (!Array.isArray(taskOrRepeatDays) && getTaskRepeatModeValue(taskOrRepeatDays) === "specific") {
+    const dates = normalizeSpecificRepeatDates(taskOrRepeatDays.repeatSpecificDates, taskOrRepeatDays.date);
+    if (!dates.length) return `Specific dates${endLabel}`;
+    const preview = dates.slice(0, 2).map(formatDateHeading).join(", ");
+    const extra = dates.length > 2 ? ` + ${dates.length - 2} more` : "";
+    return `${preview}${extra}${endLabel}`;
   }
 
   const repeatDays = Array.isArray(taskOrRepeatDays)
@@ -6277,8 +6758,14 @@ function isReminderItem(task) {
   return getItemKind(task) === "reminder";
 }
 
+function isPointReminder(task) {
+  return isReminderItem(task) && !normalizeOptionalEndTime(task?.endTime);
+}
+
 function normalizeTimerMode(value) {
-  return value === "stopwatch" ? "stopwatch" : "countdown";
+  if (value === "stopwatch") return "stopwatch";
+  if (value === "all-day") return "all-day";
+  return "countdown";
 }
 
 function getTaskTimerMode(task) {
@@ -6287,6 +6774,10 @@ function getTaskTimerMode(task) {
 
 function isStopwatchTask(task) {
   return getTaskTimerMode(task) === "stopwatch";
+}
+
+function isAllDayTask(task) {
+  return !isReminderItem(task) && getTaskTimerMode(task) === "all-day";
 }
 
 function normalizeTaskDuration(value) {
@@ -6327,20 +6818,36 @@ function parseDurationMinutes(value) {
 }
 
 function getTaskDurationForForm(task) {
+  if (isAllDayTask(task)) return DEFAULT_TASK_DURATION_MINUTES;
   return isReminderItem(task) ? DEFAULT_TASK_DURATION_MINUTES : normalizeTaskDuration(task.duration);
 }
 
 function getVisualTaskDuration(task) {
-  if (isReminderItem(task)) return GRID_MOVE_SNAP_MINUTES;
+  if (isAllDayTask(task)) return 24 * 60;
+  if (isReminderItem(task)) return getReminderVisualDuration(task);
   if (isStopwatchTask(task) && !Number(task.duration)) return STOPWATCH_VISUAL_DURATION_MINUTES;
   return normalizeTaskDuration(task.duration);
 }
 
+function getReminderVisualDuration(task) {
+  const start = timeToMinutes(task?.time);
+  const endTime = normalizeOptionalEndTime(task?.endTime);
+
+  if (endTime) {
+    const end = timeToMinutes(endTime);
+    return clamp(end > start ? end - start : GRID_MOVE_SNAP_MINUTES, GRID_MOVE_SNAP_MINUTES, MAX_TASK_DURATION_MINUTES);
+  }
+
+  return GRID_MOVE_SNAP_MINUTES * 2;
+}
+
 function getScheduleProgressWeight(task) {
+  if (isAllDayTask(task)) return 0;
   return isReminderItem(task) ? GRID_MOVE_SNAP_MINUTES : getVisualTaskDuration(task);
 }
 
 function getTaskTimingLabel(task) {
+  if (isAllDayTask(task)) return "All day";
   if (isReminderItem(task)) return "Reminder";
   if (isStopwatchTask(task)) return "Stopwatch";
 
@@ -6356,7 +6863,7 @@ function createEndTimeChip(task) {
 }
 
 function calculatePoints(task) {
-  if (isReminderItem(task)) return 0;
+  if (isReminderItem(task) || isAllDayTask(task)) return 0;
 
   if (task.done && Number.isFinite(Number(task.earnedPoints))) {
     return Math.round(Number(task.earnedPoints));
@@ -6366,7 +6873,7 @@ function calculatePoints(task) {
 }
 
 function calculateCompletedMinutes(task) {
-  if (isReminderItem(task)) return 0;
+  if (isReminderItem(task) || isAllDayTask(task)) return 0;
 
   if (task.done && Number.isFinite(Number(task.actualMinutes))) {
     return Math.round(Number(task.actualMinutes));
@@ -6376,12 +6883,12 @@ function calculateCompletedMinutes(task) {
 }
 
 function normalizeEarnedPoints(value, task) {
-  if (isReminderItem(task)) return 0;
+  if (isReminderItem(task) || isAllDayTask(task)) return 0;
   return Number.isFinite(Number(value)) ? Math.max(Math.round(Number(value)), 0) : calculatePoints(task);
 }
 
 function normalizeActualMinutes(value, task) {
-  if (isReminderItem(task)) return 0;
+  if (isReminderItem(task) || isAllDayTask(task)) return 0;
   const fallback = getVisualTaskDuration(task);
   if (!Number.isFinite(Number(value))) return fallback;
   if (isStopwatchTask(task)) return Math.max(Math.round(Number(value)), 0);
@@ -6452,7 +6959,13 @@ function checkTaskReminders(occurrences = reminderOccurrences) {
   const tasksToCheck = occurrences.length > 0 ? occurrences : buildScheduleOccurrences();
 
   tasksToCheck
-    .filter((task) => task.occurrenceDate === currentDate && !task.done && !task.skipped && !isActiveTimerFor(task))
+    .filter((task) => (
+      task.occurrenceDate === currentDate
+      && !task.done
+      && !task.skipped
+      && !isAllDayTask(task)
+      && !isActiveTimerFor(task)
+    ))
     .forEach((task) => {
       const reminderKey = createTaskReminderKey(task);
       if (sentTaskReminderKeys.has(reminderKey)) return;
@@ -7111,7 +7624,7 @@ function applyTheme(theme) {
 }
 
 function applyAccentTheme(theme, shouldSave = true) {
-  currentAccentTheme = ACCENT_THEMES[theme] ? theme : "green";
+  currentAccentTheme = ACCENT_THEMES[theme] ? theme : "sleek";
   const accent = ACCENT_THEMES[currentAccentTheme][currentTheme];
 
   [document.documentElement, document.body].forEach((element) => {
@@ -7407,9 +7920,11 @@ function updateAuthUI() {
   authSession.classList.toggle("hidden", !signedIn);
   shedulrNameForm?.classList.toggle("hidden", !signedIn);
   friendsSection?.classList.toggle("hidden", !signedIn);
+  groupsSection?.classList.toggle("hidden", !signedIn);
   inviteInbox?.classList.toggle("hidden", !signedIn);
   authUserLabel.textContent = cloudUser?.email ?? "Signed in";
   renderFriendControls();
+  renderGroupControls();
 
   if (signedIn) {
     authPasswordInput.value = "";
@@ -8112,6 +8627,674 @@ function createFriendPublicGrid(grid) {
   `;
 }
 
+function createGroup(event) {
+  event.preventDefault();
+  const name = normalizeGroupName(groupNameInput?.value);
+  const type = normalizeGroupType(groupTypeSelect?.value);
+
+  if (!name) {
+    groupNameInput?.focus();
+    return;
+  }
+
+  if (!cloudUser) {
+    setGroupsStatus("Log in first to create shared groups.");
+    return;
+  }
+
+  const hostProfile = getActiveProfile();
+  const group = {
+    id: createId("group"),
+    name,
+    type,
+    hostProfileId: activeProfileId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    members: [
+      {
+        id: getCurrentGroupMemberId(),
+        profileId: activeProfileId,
+        displayName: hostProfile?.name || "Host",
+        avatarDataUrl: normalizeAvatarDataUrl(hostProfile?.avatarDataUrl),
+        role: "host",
+        status: "approved",
+        source: "profile",
+        addedAt: new Date().toISOString(),
+      },
+    ],
+    schedules: [],
+    pendingChanges: [],
+  };
+
+  groups = normalizeGroups([group, ...groups]);
+  saveGroups();
+  groupCreateForm?.reset();
+  renderGroupControls();
+  setGroupsStatus(`${name} created. Add people and start a shared schedule.`);
+}
+
+function handleGroupListSubmit(event) {
+  const form = event.target.closest("form[data-group-form]");
+  if (!form) return;
+
+  event.preventDefault();
+  const group = getGroupById(form.dataset.groupId);
+  if (!group) return;
+
+  if (form.dataset.groupForm === "member") {
+    addGroupMemberFromForm(group, form);
+    return;
+  }
+
+  if (form.dataset.groupForm === "schedule") {
+    addGroupScheduleFromForm(group, form);
+  }
+}
+
+function handleGroupListAction(event) {
+  const button = event.target.closest("button[data-group-action]");
+  if (!button) return;
+
+  const group = getGroupById(button.dataset.groupId);
+  if (!group) return;
+
+  const action = button.dataset.groupAction;
+
+  if (action === "delete-group") {
+    if (!canManageGroup(group)) return;
+    groups = groups.filter((savedGroup) => savedGroup.id !== group.id);
+    saveGroups();
+    renderGroupControls();
+    setGroupsStatus(`${group.name} deleted.`);
+    return;
+  }
+
+  if (action === "remove-member") {
+    if (!canManageGroup(group)) return;
+    const memberId = button.dataset.memberId;
+    const member = group.members.find((savedMember) => savedMember.id === memberId);
+    if (!member || isOriginalGroupHost(group, member)) return;
+    updateGroup(group.id, (draft) => ({
+      ...draft,
+      members: draft.members.filter((savedMember) => savedMember.id !== memberId),
+      updatedAt: new Date().toISOString(),
+    }));
+    setGroupsStatus(`${member.displayName} removed from ${group.name}.`);
+    return;
+  }
+
+  if (action === "delete-schedule") {
+    if (!canEditGroupSchedules(group)) return;
+    const scheduleId = button.dataset.scheduleId;
+    updateGroup(group.id, (draft) => ({
+      ...draft,
+      schedules: draft.schedules.filter((schedule) => schedule.id !== scheduleId),
+      updatedAt: new Date().toISOString(),
+    }));
+    setGroupsStatus("Shared schedule removed.");
+    return;
+  }
+
+  if (action === "approve-request") {
+    if (!canManageGroup(group)) return;
+    approveGroupRequest(group, button.dataset.requestId);
+    return;
+  }
+
+  if (action === "reject-request") {
+    if (!canManageGroup(group)) return;
+    rejectGroupRequest(group, button.dataset.requestId);
+  }
+}
+
+function handleGroupListChange(event) {
+  const select = event.target.closest("select[data-group-role-select]");
+  if (!select) return;
+
+  const group = getGroupById(select.dataset.groupId);
+  if (!group || !canManageGroup(group)) {
+    renderGroupControls();
+    return;
+  }
+
+  const memberId = select.dataset.memberId;
+  const role = normalizeGroupRole(select.value);
+  const member = group.members.find((savedMember) => savedMember.id === memberId);
+  if (!member || isOriginalGroupHost(group, member)) {
+    renderGroupControls();
+    return;
+  }
+
+  updateGroup(group.id, (draft) => ({
+    ...draft,
+    members: draft.members.map((savedMember) =>
+      savedMember.id === memberId
+        ? { ...savedMember, role, status: "approved" }
+        : savedMember,
+    ),
+    updatedAt: new Date().toISOString(),
+  }));
+  setGroupsStatus(`${member.displayName} is now a ${GROUP_ROLE_LABELS[role].toLowerCase()}.`);
+}
+
+function addGroupMemberFromForm(group, form) {
+  if (!canManageGroup(group)) {
+    setGroupsStatus("Only hosts can add people or change roles.");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const lookup = String(formData.get("groupMember") ?? "").trim();
+  const role = normalizeGroupRole(formData.get("groupMemberRole"));
+  const member = createGroupMemberFromLookup(lookup, role);
+
+  if (!member) {
+    form.querySelector("[name='groupMember']")?.focus();
+    return;
+  }
+
+  if (group.members.some((savedMember) => savedMember.id.toLowerCase() === member.id.toLowerCase())) {
+    setGroupsStatus(`${member.displayName} is already in ${group.name}.`);
+    return;
+  }
+
+  updateGroup(group.id, (draft) => ({
+    ...draft,
+    members: normalizeGroupMembers([member, ...draft.members], draft.hostProfileId),
+    updatedAt: new Date().toISOString(),
+  }));
+  form.reset();
+  setGroupsStatus(`${member.displayName} added as ${GROUP_ROLE_LABELS[member.role].toLowerCase()}.`);
+}
+
+function addGroupScheduleFromForm(group, form) {
+  const formData = new FormData(form);
+  const title = normalizeSharedScheduleTitle(formData.get("sharedScheduleTitle"));
+  if (!title) {
+    form.querySelector("[name='sharedScheduleTitle']")?.focus();
+    return;
+  }
+
+  if (canEditGroupSchedules(group)) {
+    updateGroup(group.id, (draft) => ({
+      ...draft,
+      schedules: [createSharedSchedule(title, "", "", draft), ...draft.schedules],
+      updatedAt: new Date().toISOString(),
+    }));
+    form.reset();
+    setGroupsStatus(`Shared schedule added to ${group.name}.`);
+    return;
+  }
+
+  const member = getCurrentGroupMember(group);
+  updateGroup(group.id, (draft) => ({
+    ...draft,
+    pendingChanges: [
+      {
+        id: createId("group-request"),
+        type: "schedule-create",
+        title,
+        requestedBy: member?.id || getCurrentGroupMemberId(),
+        requestedByName: member?.displayName || getActiveProfile()?.name || "Member",
+        createdAt: new Date().toISOString(),
+      },
+      ...draft.pendingChanges,
+    ],
+    updatedAt: new Date().toISOString(),
+  }));
+  form.reset();
+  setGroupsStatus("Request sent to hosts for approval.");
+}
+
+function approveGroupRequest(group, requestId) {
+  const request = group.pendingChanges.find((savedRequest) => savedRequest.id === requestId);
+  if (!request) return;
+
+  updateGroup(group.id, (draft) => ({
+    ...draft,
+    schedules: request.type === "schedule-create"
+      ? [createSharedSchedule(request.title, request.requestedBy, request.requestedByName), ...draft.schedules]
+      : draft.schedules,
+    pendingChanges: draft.pendingChanges.filter((savedRequest) => savedRequest.id !== requestId),
+    updatedAt: new Date().toISOString(),
+  }));
+  setGroupsStatus("Request approved.");
+}
+
+function rejectGroupRequest(group, requestId) {
+  updateGroup(group.id, (draft) => ({
+    ...draft,
+    pendingChanges: draft.pendingChanges.filter((request) => request.id !== requestId),
+    updatedAt: new Date().toISOString(),
+  }));
+  setGroupsStatus("Request dismissed.");
+}
+
+function renderGroupControls() {
+  if (!groupsList) return;
+
+  if (!cloudUser) {
+    groupsList.innerHTML = "";
+    setGroupsStatus("Log in to create groups and shared schedules.");
+    return;
+  }
+
+  groups = normalizeGroups(groups);
+  if (groups.length === 0) {
+    groupsList.innerHTML = '<p class="friends-empty">No groups yet. Create one for friends, family, work, or anything else.</p>';
+    setGroupsStatus("Hosts control everything. Leaders can edit schedules. Members request changes.");
+    return;
+  }
+
+  groupsList.innerHTML = groups.map(createGroupCard).join("");
+  setGroupsStatus("Hosts can promote roles and approve member requests.");
+}
+
+function createGroupCard(group) {
+  const role = getCurrentGroupRole(group);
+  const isHost = canManageGroup(group);
+  const canEdit = canEditGroupSchedules(group);
+  const pending = group.pendingChanges.length;
+  const memberLabel = `${group.members.length} member${group.members.length === 1 ? "" : "s"}`;
+  const scheduleLabel = `${group.schedules.length} schedule${group.schedules.length === 1 ? "" : "s"}`;
+  const hostActions = isHost
+    ? `<button class="danger-button delete-x-button" data-group-action="delete-group" data-group-id="${escapeHTML(group.id)}" type="button" title="Delete group" aria-label="Delete group">x</button>`
+    : "";
+  const memberForm = isHost
+    ? `
+      <form class="group-inline-form group-member-form" data-group-form="member" data-group-id="${escapeHTML(group.id)}">
+        <label>
+          Add person
+          <input name="groupMember" type="text" autocomplete="off" placeholder="Friend, @name, or email" />
+        </label>
+        <label>
+          Role
+          <select name="groupMemberRole">
+            ${createGroupRoleOptions("member", { includeHost: true })}
+          </select>
+        </label>
+        <button class="secondary-button" type="submit">Add</button>
+      </form>
+    `
+    : '<p class="group-note">Only hosts can add people or promote roles.</p>';
+  const scheduleButtonLabel = canEdit ? "Add" : "Request";
+  const requestMarkup = isHost && pending > 0
+    ? `
+      <div class="group-section">
+        <div class="group-section-heading">
+          <strong>Approval requests</strong>
+          <span>${pending}</span>
+        </div>
+        <div class="group-request-list">
+          ${group.pendingChanges.map((request) => createGroupRequestRow(request, group)).join("")}
+        </div>
+      </div>
+    `
+    : "";
+
+  return `
+    <article class="group-card">
+      <div class="group-card-header">
+        <div>
+          <strong>${escapeHTML(group.name)}</strong>
+          <small>${escapeHTML(GROUP_TYPE_LABELS[group.type])} &middot; ${escapeHTML(memberLabel)} &middot; ${escapeHTML(scheduleLabel)}</small>
+        </div>
+        <div class="group-card-actions">
+          <span class="group-role-pill">${escapeHTML(GROUP_ROLE_LABELS[role])}</span>
+          ${hostActions}
+        </div>
+      </div>
+
+      ${memberForm}
+
+      <div class="group-section">
+        <div class="group-section-heading">
+          <strong>People</strong>
+          <span>${escapeHTML(memberLabel)}</span>
+        </div>
+        <div class="group-member-list">
+          ${group.members.map((member) => createGroupMemberRow(member, group, isHost)).join("")}
+        </div>
+      </div>
+
+      <div class="group-section">
+        <div class="group-section-heading">
+          <strong>Shared schedules</strong>
+          <span>${escapeHTML(scheduleLabel)}</span>
+        </div>
+        <form class="group-inline-form group-schedule-form" data-group-form="schedule" data-group-id="${escapeHTML(group.id)}">
+          <label>
+            Schedule name
+            <input name="sharedScheduleTitle" type="text" maxlength="72" placeholder="Exam plan, House chores..." />
+          </label>
+          <button class="${canEdit ? "primary-button" : "secondary-button"}" type="submit">${scheduleButtonLabel}</button>
+        </form>
+        <div class="shared-schedule-list">
+          ${group.schedules.length
+            ? group.schedules.map((schedule) => createSharedScheduleRow(schedule, group, canEdit)).join("")
+            : '<p class="friends-empty">No shared schedules yet.</p>'}
+        </div>
+      </div>
+
+      ${requestMarkup}
+    </article>
+  `;
+}
+
+function createGroupMemberRow(member, group, isHost) {
+  const roleSelect = isHost
+    ? `
+      <select class="group-role-select" data-group-role-select data-group-id="${escapeHTML(group.id)}" data-member-id="${escapeHTML(member.id)}" ${isOriginalGroupHost(group, member) ? "disabled" : ""}>
+        ${createGroupRoleOptions(member.role, { includeHost: true })}
+      </select>
+    `
+    : `<span class="group-role-pill muted">${escapeHTML(GROUP_ROLE_LABELS[member.role])}</span>`;
+  const removeButton = isHost && !isOriginalGroupHost(group, member)
+    ? `<button class="danger-button delete-x-button" data-group-action="remove-member" data-group-id="${escapeHTML(group.id)}" data-member-id="${escapeHTML(member.id)}" type="button" title="Remove member" aria-label="Remove member">x</button>`
+    : "";
+
+  return `
+    <article class="group-member-row">
+      <span class="profile-avatar" aria-hidden="true">${createGroupMemberAvatarContent(member)}</span>
+      <div class="group-member-main">
+        <strong>${escapeHTML(member.displayName)}</strong>
+        <small>${escapeHTML(getGroupMemberSubLabel(member))}</small>
+      </div>
+      ${roleSelect}
+      ${removeButton}
+    </article>
+  `;
+}
+
+function createSharedScheduleRow(schedule, group, canEdit) {
+  const deleteButton = canEdit
+    ? `<button class="danger-button delete-x-button" data-group-action="delete-schedule" data-group-id="${escapeHTML(group.id)}" data-schedule-id="${escapeHTML(schedule.id)}" type="button" title="Delete schedule" aria-label="Delete schedule">x</button>`
+    : "";
+
+  return `
+    <article class="shared-schedule-row">
+      <div>
+        <strong>${escapeHTML(schedule.title)}</strong>
+        <small>${escapeHTML(schedule.createdByName)} &middot; ${escapeHTML(formatShortDate(schedule.createdAt))}</small>
+      </div>
+      ${deleteButton}
+    </article>
+  `;
+}
+
+function createGroupRequestRow(request, group) {
+  return `
+    <article class="group-request-row">
+      <div>
+        <strong>${escapeHTML(request.title)}</strong>
+        <small>${escapeHTML(request.requestedByName)} requested a shared schedule</small>
+      </div>
+      <button class="secondary-button" data-group-action="reject-request" data-group-id="${escapeHTML(group.id)}" data-request-id="${escapeHTML(request.id)}" type="button">Reject</button>
+      <button class="primary-button" data-group-action="approve-request" data-group-id="${escapeHTML(group.id)}" data-request-id="${escapeHTML(request.id)}" type="button">Approve</button>
+    </article>
+  `;
+}
+
+function createGroupRoleOptions(selectedRole, options = {}) {
+  return GROUP_ROLES
+    .filter((role) => options.includeHost || role !== "host")
+    .map((role) => `<option value="${role}" ${role === selectedRole ? "selected" : ""}>${GROUP_ROLE_LABELS[role]}</option>`)
+    .join("");
+}
+
+function createGroupMemberAvatarContent(member) {
+  const avatarDataUrl = normalizeAvatarDataUrl(member?.avatarDataUrl);
+  if (avatarDataUrl) {
+    return `<img src="${escapeHTML(avatarDataUrl)}" alt="" />`;
+  }
+
+  return escapeHTML(getProfileInitials(member?.displayName));
+}
+
+function createSharedSchedule(title, createdBy = "", createdByName = "", group = null) {
+  const member = group ? getCurrentGroupMember(group) : getCurrentGroupMember();
+  return {
+    id: createId("shared-schedule"),
+    title: normalizeSharedScheduleTitle(title) || "Shared schedule",
+    createdBy: createdBy || member?.id || getCurrentGroupMemberId(),
+    createdByName: normalizeShedulrDisplayName(createdByName || member?.displayName || getActiveProfile()?.name) || "Host",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function createGroupMemberFromLookup(value, role = "member") {
+  const label = String(value ?? "").trim();
+  if (!label) return null;
+
+  const friend = findFriendByLookup(label);
+  if (friend) {
+    return {
+      id: `friend:${getFriendId(friend)}`,
+      userId: friend.userId,
+      email: friend.email,
+      displayName: friend.displayName,
+      handle: friend.handle,
+      avatarDataUrl: friend.avatarDataUrl,
+      role: normalizeGroupRole(role),
+      status: "approved",
+      source: "friend",
+      addedAt: new Date().toISOString(),
+    };
+  }
+
+  const email = isLikelyEmail(label) ? normalizeEmail(label) : "";
+  const displayName = normalizeShedulrDisplayName(email ? label.split("@")[0] : label.replace(/^@/, "")) || "Member";
+  const handle = email ? "" : createShedulrHandle(displayName);
+
+  return {
+    id: email ? `email:${email}` : `name:${handle || crypto.randomUUID()}`,
+    email,
+    displayName,
+    handle,
+    avatarDataUrl: "",
+    role: normalizeGroupRole(role),
+    status: "approved",
+    source: "manual",
+    addedAt: new Date().toISOString(),
+  };
+}
+
+function findFriendByLookup(value) {
+  const label = String(value ?? "").trim().toLowerCase();
+  const handle = createShedulrHandle(label.replace(/^@/, ""));
+  const email = normalizeEmail(label);
+  return friends.find((friend) =>
+    normalizeEmail(friend.email) === email
+    || createShedulrHandle(friend.handle) === handle
+    || createShedulrHandle(friend.displayName) === handle
+    || getFriendId(friend).toLowerCase() === label,
+  ) ?? null;
+}
+
+function updateGroup(groupId, updater) {
+  groups = normalizeGroups(groups.map((group) => (
+    group.id === groupId ? updater(group) : group
+  )));
+  saveGroups();
+  renderGroupControls();
+}
+
+function getGroupById(groupId) {
+  return groups.find((group) => group.id === groupId) ?? null;
+}
+
+function getCurrentGroupMemberId() {
+  return `profile:${activeProfileId}`;
+}
+
+function getCurrentGroupMember(group = null) {
+  if (!group) {
+    const activeProfile = getActiveProfile();
+    return {
+      id: getCurrentGroupMemberId(),
+      profileId: activeProfileId,
+      displayName: activeProfile?.name || "Me",
+      avatarDataUrl: normalizeAvatarDataUrl(activeProfile?.avatarDataUrl),
+      role: "host",
+      status: "approved",
+    };
+  }
+
+  return group.members.find((member) => member.id === getCurrentGroupMemberId()) ?? null;
+}
+
+function getCurrentGroupRole(group) {
+  if (group.hostProfileId === activeProfileId) return "host";
+  const member = getCurrentGroupMember(group);
+  if (!member || member.status !== "approved") return "member";
+  return normalizeGroupRole(member.role);
+}
+
+function canManageGroup(group) {
+  return getCurrentGroupRole(group) === "host";
+}
+
+function canEditGroupSchedules(group) {
+  return ["host", "leader"].includes(getCurrentGroupRole(group));
+}
+
+function isOriginalGroupHost(group, member) {
+  return member?.id === `profile:${group.hostProfileId}`;
+}
+
+function getGroupMemberSubLabel(member) {
+  if (member.email) return member.email;
+  if (member.handle) return `@${member.handle}`;
+  return member.source === "profile" ? "This profile" : "Group member";
+}
+
+function setGroupsStatus(message) {
+  if (groupsStatus) groupsStatus.textContent = message;
+}
+
+function normalizeGroupName(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 48);
+}
+
+function normalizeGroupType(value) {
+  const type = String(value ?? "").toLowerCase();
+  return GROUP_TYPES.includes(type) ? type : "other";
+}
+
+function normalizeGroupRole(value) {
+  const role = String(value ?? "").toLowerCase();
+  return GROUP_ROLES.includes(role) ? role : "member";
+}
+
+function normalizeSharedScheduleTitle(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 72);
+}
+
+function normalizeGroups(value, ownerProfileId = activeProfileId) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [])
+    .map((group) => {
+      const id = String(group?.id || createId("group"));
+      if (seen.has(id)) return null;
+      seen.add(id);
+
+      const hostProfileId = String(group?.hostProfileId || group?.host_profile_id || ownerProfileId);
+      return {
+        id,
+        name: normalizeGroupName(group?.name) || "Shared group",
+        type: normalizeGroupType(group?.type),
+        hostProfileId,
+        createdAt: isValidDateString(group?.createdAt) ? group.createdAt : new Date().toISOString(),
+        updatedAt: isValidDateString(group?.updatedAt) ? group.updatedAt : new Date().toISOString(),
+        members: normalizeGroupMembers(group?.members, hostProfileId),
+        schedules: normalizeSharedSchedules(group?.schedules),
+        pendingChanges: normalizeGroupPendingChanges(group?.pendingChanges),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 30);
+}
+
+function normalizeGroupMembers(value, hostProfileId = activeProfileId) {
+  const seen = new Set();
+  const members = (Array.isArray(value) ? value : [])
+    .map((member) => {
+      const profileId = String(member?.profileId || member?.profile_id || "");
+      const email = normalizeEmail(member?.email);
+      const handle = createShedulrHandle(member?.handle || member?.displayName || member?.display_name);
+      const id = String(member?.id || (profileId ? `profile:${profileId}` : email ? `email:${email}` : handle ? `name:${handle}` : "")).trim();
+      if (!id || seen.has(id.toLowerCase())) return null;
+      seen.add(id.toLowerCase());
+
+      return {
+        id,
+        profileId,
+        userId: String(member?.userId || member?.user_id || ""),
+        email,
+        displayName: normalizeShedulrDisplayName(member?.displayName || member?.display_name) || email || "Member",
+        handle,
+        avatarDataUrl: normalizeAvatarDataUrl(member?.avatarDataUrl || member?.avatar_data_url),
+        role: id === `profile:${hostProfileId}` ? "host" : normalizeGroupRole(member?.role),
+        status: member?.status === "pending" ? "pending" : "approved",
+        source: String(member?.source || (profileId ? "profile" : "manual")),
+        addedAt: isValidDateString(member?.addedAt) ? member.addedAt : new Date().toISOString(),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 40);
+
+  const hostMemberId = `profile:${hostProfileId}`;
+  const hostProfile = profiles.find((profile) => profile.id === hostProfileId);
+  const hostMember = members.find((member) => member.id === hostMemberId);
+  if (hostMember) {
+    hostMember.role = "host";
+    hostMember.status = "approved";
+  } else {
+    members.unshift({
+      id: hostMemberId,
+      profileId: hostProfileId,
+      userId: "",
+      email: "",
+      displayName: hostProfile?.name || "Group host",
+      handle: "",
+      avatarDataUrl: normalizeAvatarDataUrl(hostProfile?.avatarDataUrl),
+      role: "host",
+      status: "approved",
+      source: "profile",
+      addedAt: new Date().toISOString(),
+    });
+  }
+
+  return members;
+}
+
+function normalizeSharedSchedules(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((schedule) => ({
+      id: String(schedule?.id || createId("shared-schedule")),
+      title: normalizeSharedScheduleTitle(schedule?.title) || "Shared schedule",
+      createdBy: String(schedule?.createdBy || schedule?.created_by || ""),
+      createdByName: normalizeShedulrDisplayName(schedule?.createdByName || schedule?.created_by_name) || "Host",
+      createdAt: isValidDateString(schedule?.createdAt) ? schedule.createdAt : new Date().toISOString(),
+      updatedAt: isValidDateString(schedule?.updatedAt) ? schedule.updatedAt : new Date().toISOString(),
+    }))
+    .slice(0, 80);
+}
+
+function normalizeGroupPendingChanges(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((request) => ({
+      id: String(request?.id || createId("group-request")),
+      type: request?.type === "schedule-create" ? "schedule-create" : "schedule-create",
+      title: normalizeSharedScheduleTitle(request?.title) || "Shared schedule",
+      requestedBy: String(request?.requestedBy || request?.requested_by || ""),
+      requestedByName: normalizeShedulrDisplayName(request?.requestedByName || request?.requested_by_name) || "Member",
+      createdAt: isValidDateString(request?.createdAt) ? request.createdAt : new Date().toISOString(),
+    }))
+    .slice(0, 80);
+}
+
 function setFriendsStatus(message) {
   if (friendsStatus) friendsStatus.textContent = message;
 }
@@ -8651,14 +9834,15 @@ function createInvitePreview(invite) {
 function createTaskInvitePayload(task) {
   const itemKind = getItemKind(task);
   const timerMode = getTaskTimerMode(task);
+  const isAllDay = timerMode === "all-day";
   return {
     sourceTaskId: String(task.id ?? ""),
     itemKind,
     title: normalizeInviteTitle(task.title),
     date: isISODateString(task.date) ? task.date : todayISO,
-    time: isTimeInputValue(task.time) ? task.time : "09:00",
+    time: isAllDay ? "00:00" : isTimeInputValue(task.time) ? task.time : "09:00",
     endTime: itemKind === "reminder" ? normalizeOptionalEndTime(task.endTime) : "",
-    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(task.duration),
     timerMode,
     type: normalizeTaskTypeName(task.type) || "Personal",
     priority: normalizePriority(task.priority),
@@ -8669,6 +9853,7 @@ function createTaskInvitePayload(task) {
     repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
     repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date),
     repeatDays: normalizeRepeatDays(task.repeatDays),
+    repeatSpecificDates: normalizeSpecificRepeatDates(task.repeatSpecificDates, task.date),
   };
 }
 
@@ -8676,10 +9861,12 @@ function createTaskFromInvite(invite) {
   const payload = getInvitePayload(invite);
   const itemKind = normalizeItemKind(payload.itemKind);
   const date = isISODateString(payload.date) ? payload.date : todayISO;
-  const time = isTimeInputValue(payload.time) ? payload.time : "09:00";
   const repeatMode = getRepeatModeForItemKind(itemKind, payload.repeatMode, "weekly");
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(payload.timerMode);
+  const isAllDay = timerMode === "all-day";
+  const time = isAllDay ? "00:00" : isTimeInputValue(payload.time) ? payload.time : "09:00";
   const repeatDays = normalizeRepeatDays(payload.repeatDays);
+  const repeatSpecificDates = normalizeSpecificRepeatDates(payload.repeatSpecificDates, date);
   const task = {
     id: crypto.randomUUID(),
     itemKind,
@@ -8687,7 +9874,7 @@ function createTaskFromInvite(invite) {
     date,
     time,
     endTime: itemKind === "reminder" ? normalizeOptionalEndTime(payload.endTime) : "",
-    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(payload.duration),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(payload.duration),
     timerMode,
     type: normalizeTaskTypeName(payload.type) || "Personal",
     priority: normalizePriority(payload.priority),
@@ -8698,6 +9885,7 @@ function createTaskFromInvite(invite) {
     repeatIntervalDays: normalizeRepeatIntervalDays(payload.repeatIntervalDays),
     repeatEndDate: normalizeOptionalRepeatEndDate(payload.repeatEndDate, date),
     repeatDays: Boolean(payload.repeats) ? repeatDays : [],
+    repeatSpecificDates: Boolean(payload.repeats) ? repeatSpecificDates : [],
     completedDates: [],
     skippedDates: [],
     earnedPointsByDate: {},
@@ -8715,6 +9903,10 @@ function createTaskFromInvite(invite) {
 
   if (task.repeats && task.repeatMode === "weekly" && task.repeatDays.length === 0) {
     task.repeatDays = [weekdayForISODate(task.date)];
+  }
+
+  if (task.repeats && task.repeatMode === "specific" && task.repeatSpecificDates.length === 0) {
+    task.repeatSpecificDates = [task.date];
   }
 
   return normalizeTasks([task])[0];
@@ -8762,6 +9954,7 @@ function createProfileCloudData(profileId) {
     friends: readProfileJSON(FRIENDS_STORAGE_KEY, profileId, []),
     shareSettings: readProfileJSON(SHARE_SETTINGS_STORAGE_KEY, profileId, DEFAULT_SHARE_SETTINGS),
     notes: readProfileJSON(NOTES_STORAGE_KEY, profileId, []),
+    groups: readProfileJSON(GROUPS_STORAGE_KEY, profileId, []),
     activeTimer: readProfileJSON(TIMER_STORAGE_KEY, profileId, null),
     weeklyReportSeenKey: localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY, profileId)) ?? "",
     dismissedOverlapSignature: localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY, profileId)) ?? "",
@@ -8889,7 +10082,7 @@ function applyCloudSnapshot(snapshot) {
       ? snapshot.activeProfileId
       : profiles[0].id;
     currentTheme = snapshot.theme === "dark" ? "dark" : "light";
-    currentAccentTheme = ACCENT_THEMES[snapshot.accent] ? snapshot.accent : "green";
+    currentAccentTheme = ACCENT_THEMES[snapshot.accent] ? snapshot.accent : "sleek";
     featureSettings = normalizeFeatureSettings(snapshot.featureSettings ?? {});
 
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
@@ -8908,6 +10101,7 @@ function applyCloudSnapshot(snapshot) {
     taskTemplates = loadTaskTemplates();
     friends = loadFriends();
     shareSettings = loadShareSettings();
+    groups = loadGroups();
     notes = loadNotes();
     activeNoteId = notes[0]?.id ?? "";
     dismissedOverlapSignature = localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY)) ?? "";
@@ -8918,6 +10112,7 @@ function applyCloudSnapshot(snapshot) {
     saveCustomTaskTypes();
     renderProfileControls();
     renderFriendControls();
+    renderGroupControls();
     renderTaskTypeOptions();
     renderScheduleFilterControls();
     renderTaskTemplateOptions();
@@ -8969,6 +10164,7 @@ function writeProfileCloudData(profileId, data) {
   writeProfileJSON(FRIENDS_STORAGE_KEY, profileId, normalizeFriends(data.friends));
   writeProfileJSON(SHARE_SETTINGS_STORAGE_KEY, profileId, normalizeShareSettings(data.shareSettings ?? {}));
   writeProfileJSON(NOTES_STORAGE_KEY, profileId, normalizeNotes(data.notes));
+  writeProfileJSON(GROUPS_STORAGE_KEY, profileId, normalizeGroups(data.groups, profileId));
 
   if (data.activeTimer) {
     writeProfileJSON(TIMER_STORAGE_KEY, profileId, data.activeTimer);
@@ -9159,6 +10355,7 @@ function switchProfile(profileId) {
   taskTemplates = loadTaskTemplates();
   friends = loadFriends();
   shareSettings = loadShareSettings();
+  groups = loadGroups();
   notes = loadNotes();
   activeNoteId = notes[0]?.id ?? "";
   dismissedOverlapSignature = localStorage.getItem(getProfileStorageKey(OVERLAP_DISMISS_STORAGE_KEY)) ?? "";
@@ -9168,6 +10365,7 @@ function switchProfile(profileId) {
   saveCustomTaskTypes();
   renderProfileControls();
   renderFriendControls();
+  renderGroupControls();
   renderTaskTypeOptions();
   renderScheduleFilterControls();
   renderTaskTemplateOptions();
@@ -9207,6 +10405,7 @@ function renderProfileControls() {
 
   profileList.innerHTML = profiles.map((profile) => createProfileRow(profile, activeProfile.id)).join("");
   renderFriendControls();
+  renderGroupControls();
 }
 
 function createProfileRow(profile, selectedProfileId) {
@@ -9947,6 +11146,11 @@ function saveShareSettings() {
   queueCloudSave();
 }
 
+function saveGroups() {
+  localStorage.setItem(getProfileStorageKey(GROUPS_STORAGE_KEY), JSON.stringify(groups));
+  queueCloudSave();
+}
+
 function loadTasks() {
   try {
     return normalizeTasks(JSON.parse(localStorage.getItem(getProfileStorageKey(STORAGE_KEY))) ?? []);
@@ -10010,6 +11214,14 @@ function loadShareSettings() {
     return normalizeShareSettings(JSON.parse(localStorage.getItem(getProfileStorageKey(SHARE_SETTINGS_STORAGE_KEY))) ?? {});
   } catch {
     return normalizeShareSettings({});
+  }
+}
+
+function loadGroups() {
+  try {
+    return normalizeGroups(JSON.parse(localStorage.getItem(getProfileStorageKey(GROUPS_STORAGE_KEY))) ?? []);
+  } catch {
+    return [];
   }
 }
 
@@ -10331,13 +11543,15 @@ function normalizeTasks(savedTasks) {
   return savedTasks.map((task) => {
     const itemKind = normalizeItemKind(task.itemKind);
     const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(task.timerMode);
+    const isAllDay = timerMode === "all-day";
     const type = normalizeTaskTypeName(task.type);
 
     return {
       ...task,
       itemKind,
+      time: isAllDay ? "00:00" : isTimeInputValue(task.time) ? task.time : "09:00",
       endTime: itemKind === "reminder" ? normalizeOptionalEndTime(task.endTime) : "",
-      duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(task.duration),
+      duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(task.duration),
       timerMode,
       priority: normalizePriority(task.priority),
       type,
@@ -10346,12 +11560,13 @@ function normalizeTasks(savedTasks) {
       repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
       repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date),
       repeatDays: normalizeRepeatDays(task.repeatDays),
-      completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
+      repeatSpecificDates: normalizeSpecificRepeatDates(task.repeatSpecificDates, task.date),
+      completedDates: isAllDay ? [] : Array.isArray(task.completedDates) ? task.completedDates : [],
       skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates : [],
-      earnedPoints: Number.isFinite(Number(task.earnedPoints)) ? Math.round(Number(task.earnedPoints)) : null,
-      actualMinutes: Number.isFinite(Number(task.actualMinutes)) ? Math.round(Number(task.actualMinutes)) : null,
-      earnedPointsByDate: normalizeNumberMap(task.earnedPointsByDate),
-      actualMinutesByDate: normalizeNumberMap(task.actualMinutesByDate),
+      earnedPoints: isAllDay ? null : Number.isFinite(Number(task.earnedPoints)) ? Math.round(Number(task.earnedPoints)) : null,
+      actualMinutes: isAllDay ? null : Number.isFinite(Number(task.actualMinutes)) ? Math.round(Number(task.actualMinutes)) : null,
+      earnedPointsByDate: isAllDay ? {} : normalizeNumberMap(task.earnedPointsByDate),
+      actualMinutesByDate: isAllDay ? {} : normalizeNumberMap(task.actualMinutesByDate),
       inviteEmails: normalizeInviteEmails(task.inviteEmails),
       inviteLabels: normalizeInviteLabels(task.inviteLabels ?? task.inviteEmails),
       sentInviteEmails: normalizeInviteEmails(task.sentInviteEmails),
@@ -10359,6 +11574,7 @@ function normalizeTasks(savedTasks) {
       sharedInviteId: String(task.sharedInviteId ?? ""),
       sharedByEmail: normalizeEmail(task.sharedByEmail),
       sharedByName: normalizeShedulrDisplayName(task.sharedByName),
+      done: isAllDay ? false : Boolean(task.done),
       skipped: Boolean(task.skipped),
     };
   });
@@ -10377,13 +11593,14 @@ function normalizeNumberMap(value) {
 function normalizeTaskTemplate(template) {
   const itemKind = normalizeItemKind(template.itemKind);
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(template.timerMode);
+  const isAllDay = timerMode === "all-day";
   const type = normalizeTaskTypeName(template.type);
   return {
     id: template.id || crypto.randomUUID(),
     itemKind,
     title: String(template.title ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
     endTime: itemKind === "reminder" ? normalizeOptionalEndTime(template.endTime) : "",
-    duration: itemKind === "reminder" || timerMode === "stopwatch" ? 0 : normalizeTaskDuration(template.duration),
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(template.duration),
     timerMode,
     type,
     notes: String(template.notes ?? "").trim().slice(0, 400),
@@ -10394,6 +11611,7 @@ function normalizeTaskTemplate(template) {
     repeatIntervalDays: normalizeRepeatIntervalDays(template.repeatIntervalDays),
     repeatEndDate: normalizeOptionalRepeatEndDate(template.repeatEndDate, ""),
     repeatDays: normalizeRepeatDays(template.repeatDays),
+    repeatSpecificDates: normalizeSpecificRepeatDates(template.repeatSpecificDates),
   };
 }
 
@@ -10427,6 +11645,10 @@ function addMonths(date, amount) {
   const daysInTargetMonth = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
   nextDate.setDate(Math.min(targetDay, daysInTargetMonth));
   return nextDate;
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
 function minDate(...dates) {

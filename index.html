@@ -45,6 +45,14 @@
             <strong id="topStreakValue">0</strong>
           </div>
           <div class="today-pill" id="todayLabel"></div>
+          <button class="tab-button topbar-stats-button" data-tab="stats" type="button" aria-label="Stats">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 19h16"></path>
+              <rect x="6" y="11" width="3" height="8" rx="1"></rect>
+              <rect x="11" y="7" width="3" height="12" rx="1"></rect>
+              <rect x="16" y="13" width="3" height="6" rx="1"></rect>
+            </svg>
+          </button>
           <button class="menu-button" id="menuButton" type="button" aria-label="Open settings" aria-expanded="false">
             <span class="settings-cog" aria-hidden="true">&#9881;</span>
           </button>
@@ -190,6 +198,33 @@
               <div class="friends-list" id="friendsList"></div>
             </section>
 
+            <section class="groups-card hidden" id="groupsSection" aria-labelledby="groupsTitle">
+              <div class="groups-card-header">
+                <div>
+                  <h3 id="groupsTitle">Groups</h3>
+                  <p>Create shared schedules with roles and approvals.</p>
+                </div>
+              </div>
+              <form class="group-create-form" id="groupCreateForm">
+                <label>
+                  Group name
+                  <input id="groupNameInput" name="groupName" type="text" maxlength="48" placeholder="Study group, Family chores..." />
+                </label>
+                <label>
+                  For
+                  <select id="groupTypeSelect" name="groupType">
+                    <option value="friends">Friends</option>
+                    <option value="family">Family</option>
+                    <option value="work">Work</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <button class="primary-button" type="submit">Create</button>
+              </form>
+              <small id="groupsStatus">Hosts control everything. Leaders can edit shared schedules. Members request changes for approval.</small>
+              <div class="groups-list" id="groupsList"></div>
+            </section>
+
             <section class="invite-inbox hidden" id="inviteInbox" aria-label="Task invites">
               <div class="invite-inbox-header">
                 <div>
@@ -246,8 +281,8 @@
               <button class="colour-button" data-colour-theme="gold" type="button" style="--swatch: #b2832f">
                 <span></span>Gold
               </button>
-              <button class="colour-button" data-colour-theme="sleek" type="button" style="--swatch: #6f777c">
-                <span></span>Sleek
+              <button class="colour-button" data-colour-theme="sleek" type="button" style="--swatch: #f4f6f3">
+                <span></span>Default
               </button>
             </div>
           </div>
@@ -413,6 +448,7 @@
                 <select id="editTaskTimerMode" name="timerMode">
                   <option value="countdown">Countdown</option>
                   <option value="stopwatch">Stopwatch</option>
+                  <option value="all-day">All day</option>
                 </select>
               </label>
               <label>
@@ -465,6 +501,7 @@
                   <select id="editRepeatMode" name="repeatMode">
                     <option value="interval">Every - days</option>
                     <option value="weekly">Weekly days</option>
+                    <option value="specific">Specific dates</option>
                   </select>
                 </label>
                 <label class="repeat-interval-field hidden" id="editRepeatIntervalField">
@@ -481,6 +518,26 @@
                 <label><input name="editRepeatDays" type="checkbox" value="5" /> Fri</label>
                 <label><input name="editRepeatDays" type="checkbox" value="6" /> Sat</label>
                 <label><input name="editRepeatDays" type="checkbox" value="0" /> Sun</label>
+              </div>
+              <div class="specific-date-picker hidden" id="editSpecificDatePicker" aria-label="Specific repeat dates">
+                <label>
+                  Add date
+                  <input id="editSpecificRepeatDate" type="date" />
+                </label>
+                <button class="secondary-button" id="editAddSpecificDateButton" type="button">Add date</button>
+                <input id="editRepeatSpecificDates" name="repeatSpecificDates" type="hidden" />
+                <div class="specific-calendar" id="editSpecificCalendar">
+                  <div class="specific-calendar-header">
+                    <button class="specific-calendar-nav" type="button" data-edit-specific-calendar="prev" aria-label="Previous month">&lt;</button>
+                    <strong id="editSpecificCalendarLabel"></strong>
+                    <button class="specific-calendar-nav" type="button" data-edit-specific-calendar="next" aria-label="Next month">&gt;</button>
+                  </div>
+                  <div class="specific-calendar-weekdays" aria-hidden="true">
+                    <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                  </div>
+                  <div class="specific-calendar-grid" id="editSpecificCalendarGrid"></div>
+                </div>
+                <div class="specific-date-chips" id="editSpecificDateChips"></div>
               </div>
               <label class="repeat-end-field hidden" id="editRepeatEndField">
                 Repeat ends
@@ -560,12 +617,13 @@
                   <input id="taskDuration" name="duration" type="hidden" value="30" />
                 </div>
                 <label id="taskTimerModeField">
-                  Timer
-                  <select id="taskTimerMode" name="timerMode">
-                    <option value="countdown">Countdown</option>
-                    <option value="stopwatch">Stopwatch</option>
-                  </select>
-                </label>
+                Timer
+                <select id="taskTimerMode" name="timerMode">
+                  <option value="countdown">Countdown</option>
+                  <option value="stopwatch">Stopwatch</option>
+                  <option value="all-day">All day</option>
+                </select>
+              </label>
                 <label>
                   Type
                   <select id="taskType" name="type">
@@ -626,6 +684,7 @@
                     <select id="taskRepeatMode" name="repeatMode">
                       <option value="interval">Every - days</option>
                       <option value="weekly">Weekly days</option>
+                      <option value="specific">Specific dates</option>
                     </select>
                   </label>
                   <label class="repeat-interval-field hidden" id="repeatIntervalField">
@@ -642,6 +701,26 @@
                   <label><input name="repeatDays" type="checkbox" value="5" /> Fri</label>
                   <label><input name="repeatDays" type="checkbox" value="6" /> Sat</label>
                   <label><input name="repeatDays" type="checkbox" value="0" /> Sun</label>
+                </div>
+                <div class="specific-date-picker hidden" id="specificDatePicker" aria-label="Specific repeat dates">
+                  <label>
+                    Add date
+                    <input id="specificRepeatDate" type="date" />
+                  </label>
+                  <button class="secondary-button" id="addSpecificDateButton" type="button">Add date</button>
+                  <input id="taskRepeatSpecificDates" name="repeatSpecificDates" type="hidden" />
+                  <div class="specific-calendar" id="specificCalendar">
+                    <div class="specific-calendar-header">
+                      <button class="specific-calendar-nav" type="button" data-specific-calendar="prev" aria-label="Previous month">&lt;</button>
+                      <strong id="specificCalendarLabel"></strong>
+                      <button class="specific-calendar-nav" type="button" data-specific-calendar="next" aria-label="Next month">&gt;</button>
+                    </div>
+                    <div class="specific-calendar-weekdays" aria-hidden="true">
+                      <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                    </div>
+                    <div class="specific-calendar-grid" id="specificCalendarGrid"></div>
+                  </div>
+                  <div class="specific-date-chips" id="specificDateChips"></div>
                 </div>
                 <label class="repeat-end-field hidden" id="repeatEndField">
                   Repeat ends
@@ -740,8 +819,15 @@
               <option value="week">Week</option>
               <option value="day">Day</option>
             </select>
-            <button class="filter-toggle-button" id="scheduleFilterButton" type="button" aria-expanded="false">
-              Filters
+            <button class="filter-toggle-button" id="scheduleFilterButton" type="button" aria-label="Open filters" title="Filters" aria-expanded="false">
+              <svg class="filter-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h10"></path>
+                <path d="M18 7h2"></path>
+                <circle cx="16" cy="7" r="2"></circle>
+                <path d="M4 17h2"></path>
+                <path d="M10 17h10"></path>
+                <circle cx="8" cy="17" r="2"></circle>
+              </svg>
               <span id="scheduleFilterBadge" class="hidden">0</span>
             </button>
             <div class="grid-zoom-controls" aria-label="Grid zoom controls">
@@ -877,7 +963,7 @@
             <div class="note-editor-fields hidden" id="noteEditorFields">
               <input id="noteTitleInput" type="text" maxlength="80" placeholder="Untitled note" aria-label="Note title" />
               <div class="note-toolbar note-ribbon" aria-label="Note tools">
-                <div class="note-ribbon-group" aria-label="Text formatting">
+                <div class="note-ribbon-group note-text-format-group" aria-label="Text formatting">
                   <button class="note-icon-button note-format-button" type="button" data-note-command="bold" title="Bold" aria-label="Bold">B</button>
                   <button class="note-icon-button note-format-button" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><i>I</i></button>
                   <button class="note-icon-button note-format-button" type="button" data-note-command="underline" title="Underline" aria-label="Underline"><u>U</u></button>
@@ -896,18 +982,20 @@
                       <path d="M11 7h8M11 12h8M11 17h8"></path>
                     </svg>
                   </button>
-                  <select id="noteFontSelect" aria-label="Note font">
-                    <option value="system">System</option>
-                    <option value="serif">Serif</option>
-                    <option value="mono">Mono</option>
-                    <option value="rounded">Rounded</option>
-                  </select>
-                  <select id="noteTextSizeSelect" aria-label="Note text size">
-                    <option value="14px">Small</option>
-                    <option value="16px" selected>Regular</option>
-                    <option value="20px">Large</option>
-                    <option value="26px">Title</option>
-                  </select>
+                  <div class="note-type-selects" aria-label="Font controls">
+                    <select id="noteFontSelect" aria-label="Note font">
+                      <option value="system">System</option>
+                      <option value="serif">Serif</option>
+                      <option value="mono">Mono</option>
+                      <option value="rounded">Rounded</option>
+                    </select>
+                    <select id="noteTextSizeSelect" aria-label="Note text size">
+                      <option value="14px">14</option>
+                      <option value="16px" selected>16</option>
+                      <option value="20px">20</option>
+                      <option value="26px">26</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="note-ribbon-group" aria-label="Drawing tools">
                   <button class="note-icon-button" type="button" id="noteTextModeButton" title="Text mode" aria-label="Text mode">
@@ -1086,12 +1174,6 @@
             <path d="M8 8h8M8 12h8M8 16h5"></path>
           </svg>
           <span class="tab-label">Notes</span>
-        </button>
-        <button class="tab-button" data-tab="stats" type="button" aria-label="Stats">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 19V9M12 19V5M19 19v-7"></path>
-          </svg>
-          <span class="tab-label">Stats</span>
         </button>
         <button class="assistant-fab" id="assistantButton" type="button" aria-label="Open schedule assistant">
           <svg viewBox="0 0 24 24" aria-hidden="true">
