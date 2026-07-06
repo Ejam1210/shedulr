@@ -194,6 +194,10 @@
                 <input id="publicActivityToggle" type="checkbox" checked />
                 <span>Share my recent activity with friends</span>
               </label>
+              <label class="share-toggle">
+                <input id="publicLeagueToggle" type="checkbox" />
+                <span>Show my personal league to friends</span>
+              </label>
               <small id="friendsStatus">Friends can see your shared stats and activity after you log in.</small>
               <div class="friends-list" id="friendsList"></div>
             </section>
@@ -325,10 +329,10 @@
             </label>
             <label class="setting-toggle">
               <span>
-                <strong>List timeline</strong>
-                <small>Show a current-time rail beside the Schedule list.</small>
+                <strong>Personal leagues</strong>
+                <small>Show your private consistency rank and league logo.</small>
               </span>
-              <input type="checkbox" data-feature-toggle="listTimeline" />
+              <input type="checkbox" data-feature-toggle="personalLeagues" />
             </label>
           </div>
         </div>
@@ -751,6 +755,7 @@
               </div>
             </div>
             <button class="primary-button home-add-task-button" id="homeAddTaskButton" type="button">Add a task</button>
+            <div class="home-rank-card" id="homeRankCard"></div>
             <div class="today-next-task" id="todayNextTask" aria-live="polite"></div>
             <div class="today-dayparts" id="todayDayparts" aria-label="Today's time periods"></div>
           </aside>

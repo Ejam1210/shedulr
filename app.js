@@ -49,6 +49,7 @@ const GRID_COLLAPSED_GAP_MINUTES = 24;
 const GRID_MOVE_HOLD_MS = 600;
 const GRID_MOVE_CANCEL_DISTANCE = 12;
 const GRID_MOVE_SNAP_MINUTES = 5;
+const TIMELINE_POINT_REMINDER_LANE_MIN_PX = 34;
 const DEFAULT_TASK_DURATION_MINUTES = 30;
 const MIN_TASK_DURATION_MINUTES = 1;
 const MAX_TASK_DURATION_MINUTES = 300;
@@ -68,6 +69,17 @@ const HOME_WIDGET_DESKTOP_QUERY = "(min-width: 761px) and (pointer: fine)";
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const BUILT_IN_TASK_TYPES = ["Focus", "Personal", "Study", "Health", "Errand", "Event", "Meeting"];
 const PRIORITY_LEVELS = ["Low", "Medium", "High"];
+const PERSONAL_LEAGUE_LOOKBACK_DAYS = 14;
+const PERSONAL_LEAGUES = [
+  { id: "starter", name: "Starter", badge: "I", minAverageXp: 0, minActiveDays: 0, color: "#64748b", light: "#cbd5e1", dark: "#334155" },
+  { id: "bronze", name: "Bronze", badge: "II", minAverageXp: 5, minActiveDays: 3, color: "#a16207", light: "#f0b66b", dark: "#713f12" },
+  { id: "silver", name: "Silver", badge: "III", minAverageXp: 10, minActiveDays: 5, color: "#64748b", light: "#e2e8f0", dark: "#475569" },
+  { id: "gold", name: "Gold", badge: "IV", minAverageXp: 18, minActiveDays: 6, color: "#b2832f", light: "#f7d77a", dark: "#7c4f16" },
+  { id: "sapphire", name: "Sapphire", badge: "V", minAverageXp: 28, minActiveDays: 8, color: "#2563eb", light: "#91c4ff", dark: "#1e3a8a" },
+  { id: "ruby", name: "Ruby", badge: "VI", minAverageXp: 38, minActiveDays: 9, color: "#be123c", light: "#fb7185", dark: "#881337" },
+  { id: "emerald", name: "Emerald", badge: "VII", minAverageXp: 50, minActiveDays: 10, color: "#2e7d5b", light: "#86efac", dark: "#14532d" },
+  { id: "diamond", name: "Diamond", badge: "VIII", minAverageXp: 65, minActiveDays: 11, color: "#0891b2", light: "#a5f3fc", dark: "#155e75" },
+];
 const GROUP_TYPES = ["friends", "family", "work", "other"];
 const GROUP_TYPE_LABELS = {
   friends: "Friends",
@@ -140,6 +152,7 @@ const todayDayparts = document.querySelector("#todayDayparts");
 const todayNextTask = document.querySelector("#todayNextTask");
 const daySummary = document.querySelector(".day-summary");
 const homeAddTaskButton = document.querySelector("#homeAddTaskButton");
+const homeRankCard = document.querySelector("#homeRankCard");
 const homeWeekStrip = document.querySelector("#homeWeekStrip");
 const homeDayGrid = document.querySelector("#homeDayGrid");
 const homeGridRangeInput = document.querySelector("#homeGridRange");
@@ -242,6 +255,7 @@ const friendLookupInput = document.querySelector("#friendLookupInput");
 const refreshFriendsButton = document.querySelector("#refreshFriendsButton");
 const publicGridToggle = document.querySelector("#publicGridToggle");
 const publicActivityToggle = document.querySelector("#publicActivityToggle");
+const publicLeagueToggle = document.querySelector("#publicLeagueToggle");
 const friendsStatus = document.querySelector("#friendsStatus");
 const friendsList = document.querySelector("#friendsList");
 const friendShareCard = document.querySelector("#friendShareCard");
@@ -495,12 +509,13 @@ const DEFAULT_FEATURE_SETTINGS = {
   missedTasks: true,
   focusMode: false,
   taskReminders: false,
-  listTimeline: true,
+  personalLeagues: true,
 };
 
 const DEFAULT_SHARE_SETTINGS = {
   gridPublic: false,
   activityPublic: true,
+  leaguePublic: false,
 };
 
 featureSettings = loadFeatureSettings();
@@ -643,6 +658,10 @@ featureToggleInputs.forEach((input) => {
     saveFeatureSettings();
     if (input.dataset.featureToggle === "taskReminders" && input.checked) {
       await requestTaskReminderPermission();
+    }
+    if (input.dataset.featureToggle === "personalLeagues") {
+      renderFriendControls();
+      void syncPublicProfileSnapshot({ silent: true });
     }
     applyFeatureVisibility();
     render();
@@ -902,6 +921,7 @@ shareFriendLinkButton?.addEventListener("click", shareFriendProfile);
 friendShareLinkInput?.addEventListener("click", () => friendShareLinkInput.select());
 publicGridToggle?.addEventListener("change", updatePublicGridSetting);
 publicActivityToggle?.addEventListener("change", updatePublicActivitySetting);
+publicLeagueToggle?.addEventListener("change", updatePublicLeagueSetting);
 taskFriendInviteList?.addEventListener("click", (event) => handleFriendInviteClick(event, taskInviteEmailsInput));
 editFriendInviteList?.addEventListener("click", (event) => handleFriendInviteClick(event, editTaskInviteEmailsInput));
 menuButton.addEventListener("click", openMenu);
@@ -1698,6 +1718,8 @@ function createTodayDayparts(todaysTasks) {
 }
 
 function renderHomeDashboard(occurrences, completedHistory) {
+  renderHomeRankCard(completedHistory);
+
   if (homeWeekStrip) {
     homeWeekStrip.innerHTML = createHomeWeekStrip(occurrences);
   }
@@ -1718,6 +1740,31 @@ function renderHomeDashboard(occurrences, completedHistory) {
     });
     updateHomeGridControls();
   }
+}
+
+function renderHomeRankCard(completedHistory) {
+  if (!homeRankCard) return;
+
+  homeRankCard.classList.toggle("hidden", !featureSettings.personalLeagues);
+  if (!featureSettings.personalLeagues) {
+    homeRankCard.innerHTML = "";
+    return;
+  }
+
+  const leagueState = buildPersonalLeagueState(completedHistory);
+  const nextLabel = leagueState.next
+    ? `${leagueState.nextProgress}% to ${leagueState.next.name}`
+    : "Top league";
+
+  homeRankCard.style.setProperty("--rank-logo-color", leagueState.current.color);
+  homeRankCard.innerHTML = `
+    ${createRankLogo(leagueState.current, { className: "home-rank-logo", label: `${leagueState.current.name} league` })}
+    <div>
+      <span>Personal league</span>
+      <strong>${escapeHTML(leagueState.current.name)}</strong>
+      <small>${formatPoints(leagueState.averageXp)} avg xp/day &middot; ${escapeHTML(nextLabel)}</small>
+    </div>
+  `;
 }
 
 function createHomeWeekStrip(occurrences) {
@@ -4065,7 +4112,8 @@ function createTaskCard(task) {
 function renderScheduleListTimeline(occurrences) {
   if (!scheduleListTimeline) return;
 
-  const shouldShowTimeline = false;
+  const selectedDate = scheduleAnchorDate;
+  const shouldShowTimeline = scheduleView === "list";
   scheduleListTimeline.classList.toggle("hidden", !shouldShowTimeline);
   scheduleListLayout?.classList.toggle("timeline-enabled", shouldShowTimeline);
 
@@ -4075,32 +4123,43 @@ function renderScheduleListTimeline(occurrences) {
   }
 
   const markers = occurrences
-    .filter((task) => !task.skipped && !isAllDayTask(task))
+    .filter((task) => !task.skipped && !isAllDayTask(task) && task.occurrenceDate === selectedDate)
     .map((task) => {
       const typeStyle = getTaskTypeStyle(task.type);
       const top = clamp((timeToMinutes(task.time) / (24 * 60)) * 100, 1, 99);
-      const label = `${formatTimeFromMinutes(timeToMinutes(task.time))} ${task.title}`;
+      const taskKind = isReminderItem(task) ? "Reminder" : "Task";
+      const priorityLabel = featureSettings.priorities ? ` &middot; ${escapeHTML(normalizePriority(task.priority))}` : "";
+      const tooltipTitle = `${formatTimeRange(task)} ${task.title}`;
 
       return `
-        <span
+        <button
           class="list-timeline-task-marker ${isReminderItem(task) ? "reminder" : ""}"
+          type="button"
           style="--marker-top: ${top.toFixed(2)}%; --type-color: ${typeStyle.color};"
-          title="${escapeHTML(label)}"
-          aria-hidden="true"
-        ></span>
+          title="${escapeHTML(tooltipTitle)}"
+          aria-label="${escapeHTML(`${task.title}, ${formatTimeRange(task)}, ${task.type}`)}"
+        >
+          <span class="list-timeline-task-tooltip" aria-hidden="true">
+            <strong>${escapeHTML(task.title)}</strong>
+            <small>${escapeHTML(taskKind)} &middot; ${escapeHTML(formatTimeRange(task))} &middot; ${escapeHTML(task.type)}${priorityLabel}</small>
+          </span>
+        </button>
       `;
     })
     .join("");
 
+  const currentTimeDot = selectedDate === todayISO ? '<span class="list-current-time-dot"></span>' : "";
+  const currentTimeLabel = selectedDate === todayISO ? '<span class="list-current-time-label" data-list-timeline-current-label></span>' : "";
+
   scheduleListTimeline.innerHTML = `
-    <div class="list-timeline-rail" aria-hidden="true">
-      <span class="list-timeline-label start">12a</span>
-      <span class="list-timeline-label noon">12p</span>
-      <span class="list-timeline-label end">12a</span>
+    <div class="list-timeline-rail">
+      <span class="list-timeline-label start" aria-hidden="true">12a</span>
+      <span class="list-timeline-label noon" aria-hidden="true">12p</span>
+      <span class="list-timeline-label end" aria-hidden="true">12a</span>
       ${markers}
-      <span class="list-current-time-dot"></span>
+      ${currentTimeDot}
     </div>
-    <span class="list-current-time-label" data-list-timeline-current-label></span>
+    ${currentTimeLabel}
   `;
   updateScheduleListTimelineCurrentTime();
 }
@@ -4282,8 +4341,8 @@ function createDayScheduleGrid(occurrences, options = {}) {
     expandForMove: options.context !== "home" && shouldExpandGridTimelineForMove(),
     currentMinute: getGridCurrentTimeMinuteForDate(selectedDate, options),
   });
-  const timelineItems = assignTimelineLanes(timedTasks);
   const zoom = options.zoom ?? scheduleGridZoom;
+  const timelineItems = assignTimelineLanes(timedTasks, bounds, zoom);
 
   return `
     <section class="day-grid-card">
@@ -4322,7 +4381,7 @@ function createWeekScheduleGrid(occurrences, options = {}) {
   const dayColumns = weekDates
     .map((date) => {
       const dayTasks = tasksByDate.get(date) ?? [];
-      const timelineItems = assignTimelineLanes(dayTasks.filter((task) => !isAllDayTask(task)));
+      const timelineItems = assignTimelineLanes(dayTasks.filter((task) => !isAllDayTask(task)), bounds, zoom);
 
       return `
         <div class="week-day-column ${date === todayISO ? "today" : ""}" data-grid-date="${date}">
@@ -4571,13 +4630,22 @@ function groupTasksByDate(occurrences) {
   return tasksByDate;
 }
 
-function assignTimelineLanes(dayTasks) {
+function assignTimelineLanes(dayTasks, bounds = null, zoom = scheduleGridZoom) {
   const laneEnds = [];
   let currentGroup = [];
   let currentGroupEnd = -Infinity;
   const items = dayTasks
-    .map((task) => ({ task, range: getTaskTimeRange(task), lane: 0, laneCount: 1 }))
-    .sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end);
+    .map((task) => {
+      const range = getTaskTimeRange(task);
+      return {
+        task,
+        range,
+        laneRange: getTimelineLaneRange(task, bounds, zoom),
+        lane: 0,
+        laneCount: 1,
+      };
+    })
+    .sort((a, b) => a.laneRange.start - b.laneRange.start || a.laneRange.end - b.laneRange.end);
 
   const finishGroup = () => {
     if (currentGroup.length === 0) return;
@@ -4591,20 +4659,40 @@ function assignTimelineLanes(dayTasks) {
   };
 
   items.forEach((item) => {
-    const lane = laneEnds.findIndex((end) => end <= item.range.start);
+    const lane = laneEnds.findIndex((end) => end <= item.laneRange.start);
     item.lane = lane === -1 ? laneEnds.length : lane;
-    laneEnds[item.lane] = item.range.end;
+    laneEnds[item.lane] = item.laneRange.end;
 
-    if (currentGroup.length > 0 && item.range.start >= currentGroupEnd) {
+    if (currentGroup.length > 0 && item.laneRange.start >= currentGroupEnd) {
       finishGroup();
     }
 
     currentGroup.push(item);
-    currentGroupEnd = Math.max(currentGroupEnd, item.range.end);
+    currentGroupEnd = Math.max(currentGroupEnd, item.laneRange.end);
   });
 
   finishGroup();
   return items;
+}
+
+function getTimelineLaneRange(task, bounds = null, zoom = scheduleGridZoom) {
+  const range = getTaskTimeRange(task);
+  if (!isPointReminder(task)) return range;
+
+  const visualMinutes = Math.max(
+    getVisualTaskDuration(task),
+    getMinimumTimelineVisualMinutes(TIMELINE_POINT_REMINDER_LANE_MIN_PX, zoom),
+  );
+  const maxEnd = bounds?.end ?? 24 * 60;
+  return {
+    start: range.start,
+    end: Math.min(range.start + visualMinutes, maxEnd),
+  };
+}
+
+function getMinimumTimelineVisualMinutes(pixelHeight, zoom = scheduleGridZoom) {
+  const pixelsPerMinute = Math.max(GRID_MINUTE_HEIGHT * Number(zoom || 1), 0.1);
+  return Math.ceil(Number(pixelHeight || 0) / pixelsPerMinute);
 }
 
 function createTimelineTask(item, bounds, extraClass = "") {
@@ -5307,7 +5395,7 @@ function setScheduleGridZoom(value) {
   if (nextZoom === scheduleGridZoom) return;
 
   scheduleGridZoom = nextZoom;
-  updateScheduleGridZoom();
+  render();
 }
 
 function updateScheduleGridZoom() {
@@ -5356,7 +5444,7 @@ function setHomeGridZoom(value) {
   if (nextZoom === homeGridZoom) return;
 
   homeGridZoom = nextZoom;
-  updateHomeGridZoom();
+  render();
 }
 
 function updateHomeGridZoom() {
@@ -5442,6 +5530,7 @@ function createStatsPanel(completedHistory) {
   return `
     <section class="stats-dashboard">
       ${createStatsKpiGrid(summary)}
+      ${featureSettings.personalLeagues ? createPersonalLeaguePanel(completedHistory) : ""}
       <article class="stat-card stat-card-wide stats-trend-card">
         <div class="stats-overview stats-overview-detailed">
           <div>
@@ -5838,6 +5927,155 @@ function createStatsKpiCard(label, value, detail, modifier) {
       <small>${detail}</small>
     </article>
   `;
+}
+
+function createRankLogo(league, options = {}) {
+  const label = options.label || `${league.name} league logo`;
+  const className = options.className ? ` ${options.className}` : "";
+  const isSmall = options.small ? " small" : "";
+
+  return `
+    <span
+      class="rank-logo rank-logo-${escapeHTML(league.id)}${className}${isSmall}"
+      style="--rank-logo-color: ${league.color}; --rank-logo-light: ${league.light}; --rank-logo-dark: ${league.dark};"
+      role="img"
+      aria-label="${escapeHTML(label)}"
+    >
+      <span class="rank-logo-shadow" aria-hidden="true"></span>
+      <span class="rank-logo-core" aria-hidden="true">
+        <span class="rank-logo-shine"></span>
+        <span class="rank-logo-glyph">${escapeHTML(league.badge)}</span>
+      </span>
+    </span>
+  `;
+}
+
+function createPersonalLeaguePanel(completedHistory) {
+  const leagueState = buildPersonalLeagueState(completedHistory);
+  const statusClass = leagueState.isAtRisk ? "risk" : leagueState.currentIndex === 0 ? "building" : "steady";
+  const statusLabel = leagueState.isAtRisk
+    ? "At risk"
+    : leagueState.currentIndex === 0
+      ? "Building"
+      : "Holding";
+  const nextLabel = leagueState.next
+    ? `${formatPoints(leagueState.next.minAverageXp)} avg xp/day + ${leagueState.next.minActiveDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS} active days`
+    : "Top personal league reached";
+  const keepLabel = leagueState.currentIndex > 0
+    ? `${formatPoints(leagueState.current.minAverageXp)} avg xp/day + ${leagueState.current.minActiveDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS} active days`
+    : "Start climbing by completing tasks across multiple days.";
+
+  return `
+    <article class="stat-card personal-league-card" style="--rank-color: ${leagueState.current.color}; --rank-progress: ${leagueState.nextProgress}%;">
+      <div class="personal-league-hero">
+        ${createRankLogo(leagueState.current, { className: "personal-league-logo", label: `${leagueState.current.name} personal league` })}
+        <div class="personal-league-title">
+          <span>Personal League</span>
+          <h3>${escapeHTML(leagueState.current.name)}</h3>
+          <p>Private rank based on your rolling ${PERSONAL_LEAGUE_LOOKBACK_DAYS}-day xp consistency. No leaderboard.</p>
+        </div>
+        <span class="personal-league-status ${statusClass}">${statusLabel}</span>
+      </div>
+
+      <div class="personal-league-progress">
+        <div>
+          <span>${leagueState.next ? `Next: ${escapeHTML(leagueState.next.name)}` : "Max league"}</span>
+          <strong>${leagueState.nextProgress}%</strong>
+        </div>
+        <i aria-hidden="true"><span></span></i>
+        <small>${escapeHTML(nextLabel)}</small>
+      </div>
+
+      <div class="personal-league-metrics">
+        <article>
+          <span>14-day avg</span>
+          <strong>${formatPoints(leagueState.averageXp)}</strong>
+          <small>xp/day</small>
+        </article>
+        <article>
+          <span>Active days</span>
+          <strong>${leagueState.activeDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS}</strong>
+          <small>${formatPoints(leagueState.activityRate)}% consistency</small>
+        </article>
+        <article>
+          <span>Steady days</span>
+          <strong>${leagueState.steadyDays}</strong>
+          <small>days near your average</small>
+        </article>
+        <article>
+          <span>To keep rank</span>
+          <strong>${escapeHTML(leagueState.current.name)}</strong>
+          <small>${escapeHTML(keepLabel)}</small>
+        </article>
+      </div>
+
+      <ol class="personal-league-ladder" aria-label="Personal league ladder">
+        ${createPersonalLeagueSteps(leagueState)}
+      </ol>
+    </article>
+  `;
+}
+
+function createPersonalLeagueSteps(leagueState) {
+  return PERSONAL_LEAGUES.map((league, index) => {
+    const stateClass = index < leagueState.currentIndex
+      ? "complete"
+      : index === leagueState.currentIndex
+        ? "current"
+        : "locked";
+
+    return `
+      <li class="${stateClass}" style="--league-color: ${league.color};">
+        ${createRankLogo(league, { className: "ladder-rank-logo", label: `${league.name} league`, small: true })}
+        <div>
+          <strong>${escapeHTML(league.name)}</strong>
+          <small>${formatPoints(league.minAverageXp)} avg xp/day &middot; ${league.minActiveDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS} active days</small>
+        </div>
+      </li>
+    `;
+  }).join("");
+}
+
+function buildPersonalLeagueState(completedHistory) {
+  const dailyStats = buildDailyStats(completedHistory, PERSONAL_LEAGUE_LOOKBACK_DAYS);
+  const totalPoints = dailyStats.reduce((total, day) => total + day.points, 0);
+  const activeDays = dailyStats.filter((day) => day.points > 0).length;
+  const averageXp = dailyStats.length ? totalPoints / dailyStats.length : 0;
+  const steadyFloor = Math.max(10, averageXp * 0.5);
+  const steadyDays = averageXp > 0
+    ? dailyStats.filter((day) => day.points >= steadyFloor).length
+    : 0;
+  const currentIndex = PERSONAL_LEAGUES.reduce((bestIndex, league, index) =>
+    averageXp >= league.minAverageXp && activeDays >= league.minActiveDays ? index : bestIndex,
+  0);
+  const current = PERSONAL_LEAGUES[currentIndex];
+  const next = PERSONAL_LEAGUES[currentIndex + 1] ?? null;
+  const nextAverageProgress = next?.minAverageXp
+    ? clamp((averageXp / next.minAverageXp) * 100, 0, 100)
+    : 100;
+  const nextActiveProgress = next?.minActiveDays
+    ? clamp((activeDays / next.minActiveDays) * 100, 0, 100)
+    : 100;
+  const nextProgress = next ? Math.round(Math.min(nextAverageProgress, nextActiveProgress)) : 100;
+  const activityRate = dailyStats.length ? (activeDays / dailyStats.length) * 100 : 0;
+  const isAtRisk = currentIndex > 0 && (
+    averageXp < current.minAverageXp * 1.12
+    || activeDays <= current.minActiveDays
+  );
+
+  return {
+    dailyStats,
+    totalPoints,
+    activeDays,
+    averageXp,
+    steadyDays,
+    activityRate,
+    current,
+    currentIndex,
+    next,
+    nextProgress,
+    isAtRisk,
+  };
 }
 
 function createStatsInsightStrip(summary, days) {
@@ -7199,6 +7437,10 @@ function createAssistantAdvice(prompt) {
     return createStudyAdvice(scope, activeTasks);
   }
 
+  if (lowerPrompt.includes("rank") || lowerPrompt.includes("league")) {
+    return createLeagueAdvice();
+  }
+
   if (lowerPrompt.includes("xp") || lowerPrompt.includes("point") || lowerPrompt.includes("streak")) {
     return createXpAdvice(scope, completedTasks, completedMinutes, points);
   }
@@ -7317,6 +7559,38 @@ function createXpAdvice(scope, completedTasks, completedMinutes, points) {
     title: "Here is your xp picture.",
     intro: "I checked completed work, xp, and streak progress.",
     bullets,
+  };
+}
+
+function createLeagueAdvice() {
+  if (!featureSettings.personalLeagues) {
+    return {
+      title: "Personal leagues are turned off.",
+      intro: "You can turn them on from Settings when you want a private consistency rank again.",
+      bullets: [
+        "The rank is private by default.",
+        "Friend visibility has its own toggle in your profile menu.",
+      ],
+    };
+  }
+
+  const leagueState = buildPersonalLeagueState(buildCompletedHistory());
+  const nextBullet = leagueState.next
+    ? `Next league: ${leagueState.next.name}, which needs ${formatPoints(leagueState.next.minAverageXp)} average xp/day and ${leagueState.next.minActiveDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS} active days.`
+    : "You are at the top personal league right now. Keep your rolling average steady to hold it.";
+  const riskBullet = leagueState.isAtRisk
+    ? "Your league is close to dropping, so a few steady task days will protect it."
+    : "Your league is currently stable based on the rolling 14-day window.";
+
+  return {
+    title: `You are in ${leagueState.current.name}.`,
+    intro: "Your rank is private and based on consistency, not competing with other people.",
+    bullets: [
+      `${formatPoints(leagueState.averageXp)} average xp/day across the last ${PERSONAL_LEAGUE_LOOKBACK_DAYS} days.`,
+      `${leagueState.activeDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS} active days, with ${leagueState.steadyDays} steady days near your average.`,
+      nextBullet,
+      riskBullet,
+    ],
   };
 }
 
@@ -7656,6 +7930,7 @@ function applyFeatureSettingsToControls() {
 function applyFeatureVisibility() {
   priorityField.classList.toggle("hidden", !featureSettings.priorities);
   topStreakPill?.classList.toggle("hidden", !featureSettings.streaks);
+  homeRankCard?.classList.toggle("hidden", !featureSettings.personalLeagues);
   ensureTaskReminderInterval();
 }
 
@@ -8440,12 +8715,26 @@ function updatePublicActivitySetting() {
   void syncPublicProfileSnapshot({ silent: true });
 }
 
+function updatePublicLeagueSetting() {
+  shareSettings = {
+    ...shareSettings,
+    leaguePublic: Boolean(publicLeagueToggle?.checked),
+  };
+  saveShareSettings();
+  renderFriendControls();
+  void syncPublicProfileSnapshot({ silent: true });
+}
+
 function renderFriendControls() {
   if (publicGridToggle) {
     publicGridToggle.checked = Boolean(shareSettings.gridPublic);
   }
   if (publicActivityToggle) {
     publicActivityToggle.checked = Boolean(shareSettings.activityPublic);
+  }
+  if (publicLeagueToggle) {
+    publicLeagueToggle.checked = Boolean(shareSettings.leaguePublic);
+    publicLeagueToggle.disabled = !featureSettings.personalLeagues;
   }
 
   renderFriendInviteChips();
@@ -8471,7 +8760,10 @@ function renderFriendControls() {
 function createSharingStatusLabel() {
   const gridLabel = shareSettings.gridPublic ? "Grid public" : "Grid private";
   const activityLabel = shareSettings.activityPublic ? "recent activity public" : "recent activity private";
-  return `${gridLabel}; ${activityLabel}.`;
+  const leagueLabel = !featureSettings.personalLeagues
+    ? "league off"
+    : shareSettings.leaguePublic ? "league public" : "league private";
+  return `${gridLabel}; ${activityLabel}; ${leagueLabel}.`;
 }
 
 function renderFriendInviteChips() {
@@ -8546,6 +8838,7 @@ function createFriendDetailMarkup(friend) {
   const activityIsPublic = friend.activityPublic !== false && stats.recentPublic;
   const grid = stats.grid;
   const gridIsPublic = friend.gridVisibility === "public" && Array.isArray(grid?.days);
+  const leagueMarkup = createFriendLeagueMarkup(stats.league);
   const recentMarkup = !activityIsPublic
     ? '<p class="friends-empty">Recent activity is private.</p>'
     : recent.length
@@ -8570,6 +8863,7 @@ function createFriendDetailMarkup(friend) {
         <small>${escapeHTML(friend.handle ? `@${friend.handle}` : friend.email)}</small>
       </div>
     </div>
+    ${leagueMarkup}
     <div class="friend-stat-grid">
       ${createFriendStat("7 day xp", formatPoints(summary.weekXp))}
       ${createFriendStat("Tasks", String(summary.weekTasks))}
@@ -8583,6 +8877,27 @@ function createFriendDetailMarkup(friend) {
     <section class="friend-activity-card">
       <h3>Schedule Grid</h3>
       ${gridIsPublic ? createFriendPublicGrid(grid) : '<p class="friends-empty">Their schedule grid is private.</p>'}
+    </section>
+  `;
+}
+
+function createFriendLeagueMarkup(league) {
+  if (!league) {
+    return `
+      <section class="friend-league-card">
+        <span class="friends-empty">Personal league is private.</span>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="friend-league-card" style="--rank-color: ${league.color}; --rank-progress: ${league.progress}%;">
+      ${createRankLogo(league, { className: "friend-rank-logo", label: `${league.name} league` })}
+      <div>
+        <span>Personal league</span>
+        <strong>${escapeHTML(league.name)}</strong>
+        <small>${formatPoints(league.averageXp)} avg xp/day &middot; ${league.activeDays}/${PERSONAL_LEAGUE_LOOKBACK_DAYS} active days</small>
+      </div>
     </section>
   `;
 }
@@ -9410,7 +9725,30 @@ function normalizePublicStats(value) {
       points: Math.max(Math.round(Number(item?.points) || 0), 0),
       minutes: Math.max(Math.round(Number(item?.minutes) || 0), 0),
     })),
+    league: normalizePublicLeague(stats.league),
     grid: normalizePublicGrid(stats.grid),
+  };
+}
+
+function normalizePublicLeague(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.public === false) return null;
+
+  const matchedLeague = PERSONAL_LEAGUES.find((league) => league.id === value.id)
+    ?? PERSONAL_LEAGUES.find((league) => league.name.toLowerCase() === String(value.name ?? "").toLowerCase())
+    ?? PERSONAL_LEAGUES[0];
+
+  return {
+    public: true,
+    id: matchedLeague.id,
+    name: matchedLeague.name,
+    badge: matchedLeague.badge,
+    color: matchedLeague.color,
+    light: matchedLeague.light,
+    dark: matchedLeague.dark,
+    averageXp: Math.max(Math.round(Number(value.averageXp) || 0), 0),
+    activeDays: clamp(Math.round(Number(value.activeDays) || 0), 0, PERSONAL_LEAGUE_LOOKBACK_DAYS),
+    progress: clamp(Math.round(Number(value.progress) || 0), 0, 100),
+    nextName: String(value.nextName || "").slice(0, 32),
   };
 }
 
@@ -9974,7 +10312,7 @@ function createPublicProfileSnapshot() {
   const topType = getTopCompletedType(weekCompleted);
 
   return {
-    version: 2,
+    version: 3,
     updatedAt: new Date().toISOString(),
     avatarDataUrl: normalizeAvatarDataUrl(getActiveProfile()?.avatarDataUrl),
     recentPublic: Boolean(shareSettings.activityPublic),
@@ -9986,6 +10324,9 @@ function createPublicProfileSnapshot() {
       streakDays: getTopStreakDays(completedHistory),
       topType: topType.type,
     },
+    league: shareSettings.leaguePublic && featureSettings.personalLeagues
+      ? createPublicLeagueSnapshot(completedHistory)
+      : null,
     recent: shareSettings.activityPublic
       ? completedHistory.slice(0, 8).map((task) => ({
           title: task.title,
@@ -9996,6 +10337,23 @@ function createPublicProfileSnapshot() {
         }))
       : [],
     grid: shareSettings.gridPublic ? createPublicGridSnapshot(occurrences) : { days: [] },
+  };
+}
+
+function createPublicLeagueSnapshot(completedHistory) {
+  const leagueState = buildPersonalLeagueState(completedHistory);
+  return {
+    public: true,
+    id: leagueState.current.id,
+    name: leagueState.current.name,
+    badge: leagueState.current.badge,
+    color: leagueState.current.color,
+    light: leagueState.current.light,
+    dark: leagueState.current.dark,
+    averageXp: Math.round(leagueState.averageXp),
+    activeDays: leagueState.activeDays,
+    progress: leagueState.nextProgress,
+    nextName: leagueState.next?.name ?? "",
   };
 }
 
@@ -11239,6 +11597,7 @@ function normalizeShareSettings(value) {
     ...(value && typeof value === "object" && !Array.isArray(value) ? value : {}),
     gridPublic: Boolean(value?.gridPublic),
     activityPublic: value?.activityPublic !== false,
+    leaguePublic: Boolean(value?.leaguePublic),
   };
 }
 
