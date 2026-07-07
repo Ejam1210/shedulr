@@ -554,8 +554,43 @@ textarea {
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   justify-self: end;
+}
+
+.floating-add-button {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 26;
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--green), var(--field) 18%);
+  color: var(--button-text);
+  cursor: pointer;
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--green), transparent 70%);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.floating-add-button:hover {
+  background: color-mix(in srgb, var(--green-dark), var(--field) 14%);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--green), transparent 62%);
+  transform: translateY(-1px);
+}
+
+.floating-add-button span {
+  display: block;
+  font-size: 2rem;
+  font-weight: 850;
+  line-height: 0.85;
+  transform: translateY(-1px);
 }
 
 .topbar-stats-button {
@@ -771,6 +806,13 @@ p {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+}
+
+.profile-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .menu-header h2 {
@@ -4371,6 +4413,7 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: start;
+  overflow: visible;
 }
 
 .schedule-list-layout.timeline-enabled {
@@ -4380,9 +4423,11 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
 .schedule-list-timeline {
   position: sticky;
   top: 96px;
+  z-index: 12;
   align-self: start;
   height: min(620px, calc(100vh - 180px));
   min-height: 360px;
+  overflow: visible;
   border-radius: 999px;
   color: var(--muted);
 }
@@ -4392,6 +4437,7 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
   width: 18px;
   height: 100%;
   margin: 0 auto;
+  overflow: visible;
   border-radius: 999px;
   background:
     linear-gradient(
@@ -4437,7 +4483,7 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
   position: absolute;
   top: var(--marker-top);
   left: 50%;
-  z-index: 5;
+  z-index: 30;
   display: grid;
   place-items: center;
   width: 26px;
@@ -4479,7 +4525,7 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
   position: absolute;
   top: 50%;
   left: calc(100% + 10px);
-  z-index: 20;
+  z-index: 80;
   display: grid;
   gap: 3px;
   width: max-content;
@@ -4586,6 +4632,7 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
   display: grid;
   gap: 12px;
   position: relative;
+  z-index: 1;
 }
 
 .task-list.hidden {
@@ -6031,24 +6078,25 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   }
 }
 
-@keyframes rank-logo-bob {
+@keyframes rank-logo-bounce {
   0%,
   100% {
-    transform: translateY(0) rotateX(0deg) rotateZ(-0.4deg);
+    transform: translateY(0) scale(1);
   }
-  50% {
-    transform: translateY(-5px) rotateX(3deg) rotateZ(0.6deg);
+  48% {
+    transform: translateY(-7px) scale(1.015);
   }
 }
 
-@keyframes rank-logo-shine {
+@keyframes rank-logo-shadow-bounce {
   0%,
-  62% {
-    transform: translateX(0) rotate(18deg);
-  }
-  78%,
   100% {
-    transform: translateX(330%) rotate(18deg);
+    opacity: 0.18;
+    transform: translateX(-50%) scaleX(1);
+  }
+  48% {
+    opacity: 0.08;
+    transform: translateX(-50%) scaleX(0.78);
   }
 }
 
@@ -6070,7 +6118,9 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   .xp-impact-ring,
   .top-xp-pill.xp-pulse,
   .rank-logo,
-  .rank-logo-shine {
+  .rank-logo::before,
+  .rank-logo-image,
+  .rank-logo-shadow {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
   }
@@ -7240,152 +7290,53 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 
 .rank-logo {
   position: relative;
+  z-index: 0;
   display: inline-grid;
-  width: 68px;
-  height: 68px;
+  width: 70px;
+  height: 70px;
   flex: 0 0 auto;
   place-items: center;
-  transform-style: preserve-3d;
-  animation: rank-logo-bob 3.6s ease-in-out infinite;
+  transform-origin: center;
+  isolation: isolate;
+}
+
+.rank-logo::before {
+  display: none;
+  content: none;
 }
 
 .rank-logo.small {
-  width: 38px;
-  height: 38px;
-  animation-duration: 4.4s;
+  width: 40px;
+  height: 40px;
 }
 
 .rank-logo-shadow {
   position: absolute;
-  right: 9%;
-  bottom: -7%;
-  left: 9%;
-  height: 18%;
+  left: 50%;
+  bottom: 1%;
+  width: 54%;
+  height: 9%;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--rank-logo-dark), transparent 64%);
-  filter: blur(7px);
-  opacity: 0.62;
-  transform: translateZ(-14px);
+  background: rgba(0, 0, 0, 0.22);
+  filter: blur(6px);
+  opacity: 0.18;
+  transform: translateX(-50%);
+  animation: rank-logo-shadow-bounce 2.3s ease-in-out infinite;
 }
 
-.rank-logo-core {
+.rank-logo-image {
   position: relative;
-  display: grid;
-  width: 82%;
-  height: 82%;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--rank-logo-light), white 18%);
-  border-radius: 22px 22px 18px 18px;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--rank-logo-light), white 18%) 0%, var(--rank-logo-color) 46%, var(--rank-logo-dark) 100%);
-  box-shadow:
-    inset 0 2px 3px color-mix(in srgb, white, transparent 48%),
-    inset 0 -8px 13px color-mix(in srgb, var(--rank-logo-dark), transparent 22%),
-    0 13px 24px color-mix(in srgb, var(--rank-logo-dark), transparent 64%);
-  clip-path: polygon(50% 0%, 88% 13%, 94% 56%, 50% 100%, 6% 56%, 12% 13%);
-  transform: rotateX(13deg) rotateY(-10deg) translateZ(10px);
-}
-
-.rank-logo-core::before {
-  position: absolute;
-  inset: 8% 12% 48%;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0));
-  content: "";
-  opacity: 0.84;
-  transform: rotate(-11deg);
-}
-
-.rank-logo-core::after {
-  position: absolute;
-  inset: 18%;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 16px;
-  content: "";
-  clip-path: polygon(50% 0%, 86% 14%, 92% 56%, 50% 100%, 8% 56%, 14% 14%);
-}
-
-.rank-logo-shine {
-  position: absolute;
-  top: -18%;
-  left: -42%;
-  width: 42%;
-  height: 140%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.48), transparent);
-  opacity: 0.82;
-  transform: rotate(18deg);
-  animation: rank-logo-shine 5.8s ease-in-out infinite;
-}
-
-.rank-logo-glyph {
-  position: relative;
-  z-index: 2;
-  color: #fff;
-  font-size: 0.94rem;
-  font-weight: 950;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  text-shadow:
-    0 1px 0 color-mix(in srgb, var(--rank-logo-dark), black 16%),
-    0 4px 10px rgba(0, 0, 0, 0.24);
-}
-
-.rank-logo.small .rank-logo-core {
-  border-radius: 14px;
-}
-
-.rank-logo.small .rank-logo-glyph {
-  font-size: 0.55rem;
-}
-
-.rank-logo-starter .rank-logo-core {
-  clip-path: polygon(50% 4%, 86% 22%, 82% 72%, 50% 94%, 18% 72%, 14% 22%);
-}
-
-.rank-logo-bronze {
-  animation-delay: 120ms;
-}
-
-.rank-logo-silver {
-  animation-delay: 240ms;
-}
-
-.rank-logo-gold {
-  animation-delay: 360ms;
-}
-
-.rank-logo-sapphire {
-  animation-delay: 480ms;
-}
-
-.rank-logo-ruby {
-  animation-delay: 600ms;
-}
-
-.rank-logo-emerald {
-  animation-delay: 720ms;
-}
-
-.rank-logo-diamond {
-  animation-delay: 840ms;
-}
-
-.rank-logo-bronze .rank-logo-core,
-.rank-logo-gold .rank-logo-core,
-.rank-logo-ruby .rank-logo-core {
-  clip-path: polygon(50% 0%, 90% 16%, 90% 58%, 50% 100%, 10% 58%, 10% 16%);
-}
-
-.rank-logo-silver .rank-logo-core,
-.rank-logo-emerald .rank-logo-core {
-  clip-path: polygon(50% 0%, 94% 30%, 78% 92%, 22% 92%, 6% 30%);
-}
-
-.rank-logo-sapphire .rank-logo-core,
-.rank-logo-diamond .rank-logo-core {
-  border-radius: 16px;
-  clip-path: polygon(50% 0%, 96% 50%, 50% 100%, 4% 50%);
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center;
+  animation: rank-logo-bounce 2.3s ease-in-out infinite;
+  animation-delay: inherit;
+  will-change: transform;
 }
 
 .personal-league-title {
@@ -8121,6 +8072,12 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   fill: var(--green);
 }
 
+@media (max-width: 1180px) {
+  .topbar {
+    padding-right: 84px;
+  }
+}
+
 @media (max-width: 960px) {
   .stats-kpi-grid,
   .stats-detail-grid {
@@ -8157,14 +8114,17 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   .topbar {
     --topbar-side-bleed: 0px;
     --topbar-side-fade: 12px;
-    grid-template-columns: auto minmax(0, 1fr);
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px 11px;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 68px 11px 10px;
   }
 
   .brand-group {
+    flex: 0 0 auto;
     gap: 7px;
+    justify-self: auto;
   }
 
   .app-titlebar {
@@ -8206,7 +8166,25 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   }
 
   .top-actions {
-    gap: 6px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    justify-self: auto;
+  }
+
+  .floating-add-button {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    width: 52px;
+    height: 52px;
+  }
+
+  .floating-add-button span {
+    font-size: 1.85rem;
+  }
+
+  .profile-header-actions .menu-button {
+    flex: 0 0 44px;
   }
 
   .topbar-stats-button {
@@ -8376,7 +8354,7 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   }
 
   .top-actions {
-    align-items: stretch;
+    align-items: center;
   }
 
   .menu-button {

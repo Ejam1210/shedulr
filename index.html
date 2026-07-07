@@ -53,11 +53,12 @@
               <rect x="16" y="13" width="3" height="6" rx="1"></rect>
             </svg>
           </button>
-          <button class="menu-button" id="menuButton" type="button" aria-label="Open settings" aria-expanded="false">
-            <span class="settings-cog" aria-hidden="true">&#9881;</span>
-          </button>
         </div>
       </header>
+
+      <button class="floating-add-button" id="globalAddButton" type="button" aria-label="Add task">
+        <span aria-hidden="true">+</span>
+      </button>
 
       <div class="drawer-overlay" id="drawerOverlay"></div>
       <aside class="profile-menu" id="profileMenu" aria-label="Profiles">
@@ -66,7 +67,12 @@
             <p class="eyebrow">Profile</p>
             <h2 id="activeProfileName">My Profile</h2>
           </div>
-          <button class="close-button" id="closeProfileButton" type="button" aria-label="Close profiles">x</button>
+          <div class="profile-header-actions">
+            <button class="menu-button profile-settings-button" id="menuButton" type="button" aria-label="Open settings" aria-expanded="false">
+              <span class="settings-cog" aria-hidden="true">&#9881;</span>
+            </button>
+            <button class="close-button" id="closeProfileButton" type="button" aria-label="Close profiles">x</button>
+          </div>
         </div>
 
         <div class="profile-card">

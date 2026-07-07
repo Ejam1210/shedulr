@@ -22,7 +22,8 @@ const NOTES_STORAGE_KEY = "daily-task-scheduler.notes";
 const GROUPS_STORAGE_KEY = "daily-task-scheduler.groups";
 const SUPABASE_URL = "https://xaacjrtkzvphztifnywm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhYWNqcnRrenZwaHp0aWZueXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDA4NzcsImV4cCI6MjA5NTg3Njg3N30.mTBCPN4JiVDWQVVxBXyFE67vJ3i8A4JoW8mpUO1wDfo";
-const APP_AUTH_REDIRECT_URL = "https://ejam1210.github.io/Task-scheduling-app/";
+const APP_PUBLIC_URL = "https://ejam1210.github.io/Shedulr/";
+const APP_AUTH_REDIRECT_URL = APP_PUBLIC_URL;
 const CLOUD_DATA_TABLE = "scheduler_app_data";
 const TASK_INVITES_TABLE = "scheduler_task_invites";
 const USER_DIRECTORY_TABLE = "scheduler_user_profiles";
@@ -152,6 +153,7 @@ const todayDayparts = document.querySelector("#todayDayparts");
 const todayNextTask = document.querySelector("#todayNextTask");
 const daySummary = document.querySelector(".day-summary");
 const homeAddTaskButton = document.querySelector("#homeAddTaskButton");
+const globalAddButton = document.querySelector("#globalAddButton");
 const homeRankCard = document.querySelector("#homeRankCard");
 const homeWeekStrip = document.querySelector("#homeWeekStrip");
 const homeDayGrid = document.querySelector("#homeDayGrid");
@@ -707,6 +709,7 @@ scheduleGrid.addEventListener("touchend", resetGridPinch);
 gridZoomInButton.addEventListener("click", () => setScheduleGridZoom(scheduleGridZoom + 0.15));
 gridZoomOutButton.addEventListener("click", () => setScheduleGridZoom(scheduleGridZoom - 0.15));
 homeAddTaskButton?.addEventListener("click", openScheduleTaskFormFromHome);
+globalAddButton?.addEventListener("click", openScheduleTaskFormFromHome);
 homeGridRangeInput?.addEventListener("change", () => {
   homeGridRange = homeGridRangeInput.value === "week" ? "week" : "day";
   render();
@@ -5933,6 +5936,7 @@ function createRankLogo(league, options = {}) {
   const label = options.label || `${league.name} league logo`;
   const className = options.className ? ` ${options.className}` : "";
   const isSmall = options.small ? " small" : "";
+  const assetSrc = `assets/ranks/simple-${league.id}.svg`;
 
   return `
     <span
@@ -5942,10 +5946,7 @@ function createRankLogo(league, options = {}) {
       aria-label="${escapeHTML(label)}"
     >
       <span class="rank-logo-shadow" aria-hidden="true"></span>
-      <span class="rank-logo-core" aria-hidden="true">
-        <span class="rank-logo-shine"></span>
-        <span class="rank-logo-glyph">${escapeHTML(league.badge)}</span>
-      </span>
+      <img class="rank-logo-image" src="${escapeHTML(assetSrc)}" alt="" loading="lazy" decoding="async" draggable="false">
     </span>
   `;
 }
@@ -8151,9 +8152,26 @@ function getAuthCredentials() {
 }
 
 function getAuthRedirectUrl() {
-  if (!["http:", "https:"].includes(window.location.protocol)) return APP_AUTH_REDIRECT_URL;
+  return getAppPublicUrl();
+}
 
-  return `${window.location.origin}${window.location.pathname}`;
+function getAppPublicUrl() {
+  return getAppBaseUrl().toString();
+}
+
+function getAppBaseUrl() {
+  const isWebUrl = ["http:", "https:"].includes(window.location.protocol);
+  const baseUrl = isWebUrl
+    ? new URL(window.location.href)
+    : new URL(APP_AUTH_REDIRECT_URL);
+
+  baseUrl.hash = "";
+  baseUrl.search = "";
+  if (baseUrl.pathname.endsWith("/index.html")) {
+    baseUrl.pathname = baseUrl.pathname.slice(0, -"index.html".length) || "/";
+  }
+
+  return baseUrl;
 }
 
 function handleIncomingFriendShareLink() {
@@ -8484,9 +8502,7 @@ function getFriendShareUrl() {
   const handle = cloudDirectoryProfile?.handle || createShedulrHandle(fallbackName);
   if (!handle) return "";
 
-  const baseUrl = ["http:", "https:"].includes(window.location.protocol)
-    ? new URL(`${window.location.origin}${window.location.pathname}`)
-    : new URL(APP_AUTH_REDIRECT_URL);
+  const baseUrl = getAppBaseUrl();
   baseUrl.searchParams.set("friend", `@${handle}`);
   return baseUrl.toString();
 }
