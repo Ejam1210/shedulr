@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Gold rank">
+  <path fill="#ffe7a8" stroke="#d9a941" stroke-width="5" stroke-linejoin="round" d="M48 8 77 20 88 50 71 78 48 88 25 78 8 50 19 20Z"/>
+  <circle cx="48" cy="48" r="25" fill="#fff5cf"/>
+  <path fill="none" stroke="#a97817" stroke-linecap="round" stroke-linejoin="round" stroke-width="6" d="M38 66c14-9 21-22 20-40"/>
+  <path fill="#f5c95d" stroke="#a97817" stroke-linejoin="round" stroke-width="4" d="M44 48c-13-1-21-8-22-19 15-1 23 6 22 19Z"/>
+  <path fill="#ffdd7e" stroke="#a97817" stroke-linejoin="round" stroke-width="4" d="M54 38c11-4 16-12 14-22-12 3-18 11-14 22Z"/>
+  <path fill="#f7cf69" stroke="#a97817" stroke-linejoin="round" stroke-width="4" d="M53 57c13-2 20-9 20-20-13 1-21 8-20 20Z"/>
+</svg>

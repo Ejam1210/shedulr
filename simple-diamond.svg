@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Diamond rank">
+  <path fill="#dff4ff" stroke="#78bdd9" stroke-width="5" stroke-linejoin="round" d="M48 8 77 20 88 50 71 78 48 88 25 78 8 50 19 20Z"/>
+  <circle cx="48" cy="48" r="25" fill="#f2fbff"/>
+  <path fill="#b7e8ff" stroke="#4292b5" stroke-linejoin="round" stroke-width="5" d="M48 18 59 42 84 48 59 54 48 78 37 54 12 48 37 42Z"/>
+  <path fill="#e7f8ff" stroke="#4292b5" stroke-linejoin="round" stroke-width="4" d="M48 30 55 44 70 48 55 52 48 66 41 52 26 48 41 44Z"/>
+</svg>

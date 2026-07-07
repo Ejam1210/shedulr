@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 848 120">
+  <rect width="848" height="120" fill="#101214"/>
+  <image href="simple-starter.svg" x="16" y="12" width="96" height="96"/>
+  <image href="simple-bronze.svg" x="120" y="12" width="96" height="96"/>
+  <image href="simple-silver.svg" x="224" y="12" width="96" height="96"/>
+  <image href="simple-gold.svg" x="328" y="12" width="96" height="96"/>
+  <image href="simple-sapphire.svg" x="432" y="12" width="96" height="96"/>
+  <image href="simple-ruby.svg" x="536" y="12" width="96" height="96"/>
+  <image href="simple-emerald.svg" x="640" y="12" width="96" height="96"/>
+  <image href="simple-diamond.svg" x="744" y="12" width="96" height="96"/>
+</svg>

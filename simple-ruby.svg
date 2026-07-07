@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Ruby rank">
+  <path fill="#ffd1dc" stroke="#de7892" stroke-width="5" stroke-linejoin="round" d="M48 8 77 20 88 50 71 78 48 88 25 78 8 50 19 20Z"/>
+  <circle cx="48" cy="48" r="25" fill="#fff0f4"/>
+  <path fill="#f198ad" stroke="#b94c68" stroke-linejoin="round" stroke-width="5" d="M20 67 40 36 54 56 62 45 78 67Z"/>
+  <path fill="#ffc2cf" stroke="#b94c68" stroke-linejoin="round" stroke-width="4" d="M40 36 47 67H20Z"/>
+  <path fill="#e87691" stroke="#b94c68" stroke-linejoin="round" stroke-width="4" d="M54 56 62 45 78 67H47Z"/>
+</svg>

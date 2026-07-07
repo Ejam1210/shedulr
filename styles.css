@@ -264,10 +264,42 @@ body[data-accent-theme="sleek"] .overlap-icon-button {
 }
 
 body[data-accent-theme="sleek"] .priority-high,
-body[data-accent-theme="sleek"] .overlap-alert,
-body[data-accent-theme="sleek"] .weekly-metric.down .metric-change {
+body[data-accent-theme="sleek"] .overlap-alert {
   border-color: var(--accent-border);
   background: var(--accent-faint);
+}
+
+body[data-accent-theme="sleek"] .today-pill,
+body[data-accent-theme="sleek"] .today-status-chip,
+body[data-accent-theme="sleek"] .home-week-letter.today,
+body[data-accent-theme="sleek"] .week-days-header span.today,
+body[data-accent-theme="sleek"] .specific-calendar-day.today,
+body[data-accent-theme="sleek"] .month-day-card.today .month-date-number,
+body[data-accent-theme="sleek"] .day-grid-header span,
+body[data-accent-theme="sleek"] .all-day-grid-strip > span,
+body[data-accent-theme="sleek"] .all-day-week-strip > span,
+body[data-accent-theme="sleek"] .time-labels span,
+body[data-accent-theme="sleek"] .list-timeline-label,
+body[data-accent-theme="sleek"] .list-current-time-label {
+  color: var(--white-theme-green-dark);
+}
+
+body[data-accent-theme="sleek"] .week-days-header span.today,
+body[data-accent-theme="sleek"] .home-week-letter.today,
+body[data-accent-theme="sleek"] .specific-calendar-day.today,
+body[data-accent-theme="sleek"] .month-day-card.today {
+  background: var(--white-theme-green-faint);
+}
+
+body[data-accent-theme="sleek"] .weekly-metric.up,
+body[data-accent-theme="sleek"] .weekly-metric.flat {
+  border-left-color: var(--white-theme-green);
+}
+
+body[data-accent-theme="sleek"] .weekly-metric.up .metric-change,
+body[data-accent-theme="sleek"] .goal-result.met,
+body[data-accent-theme="sleek"] .stats-insight-strip .up strong {
+  color: var(--white-theme-green-dark);
 }
 
 button,
@@ -561,18 +593,18 @@ textarea {
 .floating-add-button {
   position: fixed;
   top: max(14px, env(safe-area-inset-top));
-  right: max(16px, env(safe-area-inset-right));
+  right: max(14px, calc((100vw - 1120px) / 2 - 54px));
   z-index: 26;
   display: grid;
-  width: 56px;
-  height: 56px;
+  width: 46px;
+  height: 46px;
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--green), var(--field) 18%);
-  color: var(--button-text);
+  background: var(--quiet-control-active-bg);
+  color: #fff;
   cursor: pointer;
-  box-shadow: 0 16px 38px color-mix(in srgb, var(--green), transparent 70%);
+  box-shadow: 0 14px 34px rgba(23, 32, 38, 0.18);
   transition:
     background 160ms ease,
     box-shadow 160ms ease,
@@ -580,17 +612,17 @@ textarea {
 }
 
 .floating-add-button:hover {
-  background: color-mix(in srgb, var(--green-dark), var(--field) 14%);
-  box-shadow: 0 18px 44px color-mix(in srgb, var(--green), transparent 62%);
+  background: var(--quiet-control-hover-bg);
+  box-shadow: 0 16px 40px rgba(23, 32, 38, 0.2);
   transform: translateY(-1px);
 }
 
 .floating-add-button span {
   display: block;
-  font-size: 2rem;
+  font-size: 1.45rem;
   font-weight: 850;
-  line-height: 0.85;
-  transform: translateY(-1px);
+  line-height: 1;
+  transform: translateY(-0.5px);
 }
 
 .topbar-stats-button {
@@ -7966,6 +7998,18 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   opacity: var(--day-opacity);
 }
 
+.consistency-day.active.at-average {
+  background: var(--green);
+}
+
+.consistency-day.active.below-average {
+  background: var(--coral);
+}
+
+body[data-accent-theme="sleek"] .consistency-day.active.at-average {
+  background: var(--white-theme-green);
+}
+
 .stats-empty-note {
   margin-bottom: 0;
   border-radius: 8px;
@@ -8072,6 +8116,42 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   fill: var(--green);
 }
 
+.line-chart.trend-down .chart-area {
+  fill: rgba(201, 95, 79, 0.12);
+}
+
+.line-chart.trend-down .chart-line {
+  stroke: var(--coral);
+}
+
+.line-chart.trend-down .chart-dot {
+  fill: var(--coral);
+}
+
+.line-chart.trend-up .chart-area {
+  fill: var(--accent-soft);
+}
+
+.line-chart.trend-up .chart-line {
+  stroke: var(--green);
+}
+
+.line-chart.trend-up .chart-dot {
+  fill: var(--green);
+}
+
+body[data-accent-theme="sleek"] .line-chart.trend-up .chart-area {
+  fill: var(--white-theme-green-faint);
+}
+
+body[data-accent-theme="sleek"] .line-chart.trend-up .chart-line {
+  stroke: var(--white-theme-green);
+}
+
+body[data-accent-theme="sleek"] .line-chart.trend-up .chart-dot {
+  fill: var(--white-theme-green);
+}
+
 @media (max-width: 1180px) {
   .topbar {
     padding-right: 84px;
@@ -8173,14 +8253,14 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   }
 
   .floating-add-button {
-    top: max(10px, env(safe-area-inset-top));
-    right: max(12px, env(safe-area-inset-right));
-    width: 52px;
-    height: 52px;
+    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    right: 13px;
+    width: 44px;
+    height: 44px;
   }
 
   .floating-add-button span {
-    font-size: 1.85rem;
+    font-size: 1.35rem;
   }
 
   .profile-header-actions .menu-button {

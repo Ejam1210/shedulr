@@ -22,7 +22,7 @@ const NOTES_STORAGE_KEY = "daily-task-scheduler.notes";
 const GROUPS_STORAGE_KEY = "daily-task-scheduler.groups";
 const SUPABASE_URL = "https://xaacjrtkzvphztifnywm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhYWNqcnRrenZwaHp0aWZueXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDA4NzcsImV4cCI6MjA5NTg3Njg3N30.mTBCPN4JiVDWQVVxBXyFE67vJ3i8A4JoW8mpUO1wDfo";
-const APP_PUBLIC_URL = "https://ejam1210.github.io/Shedulr/";
+const APP_PUBLIC_URL = "https://ejam1210.github.io/shedulr/";
 const APP_AUTH_REDIRECT_URL = APP_PUBLIC_URL;
 const CLOUD_DATA_TABLE = "scheduler_app_data";
 const TASK_INVITES_TABLE = "scheduler_task_invites";
@@ -6150,6 +6150,8 @@ function createTaskTypeBreakdownRow(stats, totalPoints) {
 }
 
 function createConsistencyPanel(dailyStats, summary) {
+  const averagePoints = summary.averagePoints;
+
   return `
     <article class="stat-card stats-detail-card">
       <div class="detail-card-heading">
@@ -6164,19 +6166,21 @@ function createConsistencyPanel(dailyStats, summary) {
         <span>active days from ${dailyStats.length}</span>
       </div>
       <div class="consistency-grid" style="--consistency-days: ${Math.min(dailyStats.length, 30)};">
-        ${dailyStats.map((day) => createConsistencyDay(day)).join("")}
+        ${dailyStats.map((day) => createConsistencyDay(day, averagePoints)).join("")}
       </div>
     </article>
   `;
 }
 
-function createConsistencyDay(day) {
+function createConsistencyDay(day, averagePoints = 0) {
+  const isActive = day.tasks > 0;
+  const trendClass = isActive && averagePoints > 0 && day.points < averagePoints ? "below-average" : "at-average";
   const dayOpacity = day.points > 0 ? clamp(0.28 + day.points / 160, 0.36, 0.9) : 0;
   const label = `${formatDateHeading(day.date)}: ${formatPoints(day.points)} xp, ${day.tasks} tasks`;
 
   return `
     <span
-      class="consistency-day ${day.tasks > 0 ? "active" : ""}"
+      class="consistency-day ${isActive ? `active ${trendClass}` : ""}"
       style="--day-opacity: ${dayOpacity.toFixed(2)};"
       title="${escapeHTML(label)}"
       aria-label="${escapeHTML(label)}"
@@ -6225,6 +6229,9 @@ function createPointsChart(dailyStats, days) {
   const chartWidth = width - chartLeft - chartRight;
   const chartHeight = height - chartTop - chartBottom;
   const values = dailyStats.map((day) => day.points);
+  const averageValue = values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+  const latestValue = values.length ? values[values.length - 1] : 0;
+  const trendClass = latestValue < averageValue ? "trend-down" : "trend-up";
   const maxValue = roundChartMax(Math.max(...values, 20));
   const points = values.map((value, index) => {
     const x =
@@ -6261,7 +6268,7 @@ function createPointsChart(dailyStats, days) {
     .join("");
 
   return `
-    <svg class="line-chart detailed-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="xp earned over ${days} days">
+    <svg class="line-chart detailed-chart ${trendClass}" viewBox="0 0 ${width} ${height}" role="img" aria-label="xp earned over ${days} days">
       ${yAxis}
       <line class="chart-axis" x1="${chartLeft}" y1="${chartTop}" x2="${chartLeft}" y2="${chartTop + chartHeight}"></line>
       <line class="chart-axis" x1="${chartLeft}" y1="${chartTop + chartHeight}" x2="${width - chartRight}" y2="${chartTop + chartHeight}"></line>
@@ -8169,6 +8176,9 @@ function getAppBaseUrl() {
   baseUrl.search = "";
   if (baseUrl.pathname.endsWith("/index.html")) {
     baseUrl.pathname = baseUrl.pathname.slice(0, -"index.html".length) || "/";
+  }
+  if (baseUrl.hostname === "ejam1210.github.io" && /\/Task-scheduling-app\/?/i.test(baseUrl.pathname)) {
+    baseUrl.pathname = "/shedulr/";
   }
 
   return baseUrl;
