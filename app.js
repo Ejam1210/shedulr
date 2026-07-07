@@ -602,6 +602,10 @@ const ACCENT_THEMES = {
     light: { accent: "#f4f6f3", strong: "#172026", soft: "rgba(244, 246, 243, 0.74)", faint: "rgba(244, 246, 243, 0.52)", border: "rgba(220, 226, 218, 0.88)" },
     dark: { accent: "#e8ece7", strong: "#ffffff", soft: "rgba(232, 236, 231, 0.13)", faint: "rgba(232, 236, 231, 0.08)", border: "rgba(232, 236, 231, 0.22)" },
   },
+  mono: {
+    light: { accent: "#f4f6f3", strong: "#172026", soft: "rgba(244, 246, 243, 0.74)", faint: "rgba(244, 246, 243, 0.52)", border: "rgba(220, 226, 218, 0.88)" },
+    dark: { accent: "#e8ece7", strong: "#ffffff", soft: "rgba(232, 236, 231, 0.13)", faint: "rgba(232, 236, 231, 0.08)", border: "rgba(232, 236, 231, 0.22)" },
+  },
 };
 
 scheduleAnchorDate = todayISO;
