@@ -64,6 +64,8 @@ const STREAK_MINUTES_TO_KEEP = 10;
 const TASK_REMINDER_INTERVAL_MS = 30 * 1000;
 const TASK_REMINDER_GRACE_MS = 2 * 60 * 1000;
 const TASK_NOTIFICATION_WINDOW_MS = 10 * 60 * 1000;
+const ACTIVE_TIMER_STALE_BUFFER_MS = 6 * 60 * 60 * 1000;
+const STOPWATCH_TIMER_STALE_MS = 18 * 60 * 60 * 1000;
 const HOME_WIDGET_SNAP_SIZE = 24;
 const HOME_WIDGET_ROW_HEIGHT = 168;
 const HOME_WIDGET_DESKTOP_QUERY = "(min-width: 761px) and (pointer: fine)";
@@ -1296,8 +1298,8 @@ function switchTab(tabName) {
 }
 
 function render() {
-  syncActiveTimerWithTasks();
   const occurrences = buildScheduleOccurrences();
+  syncActiveTimerWithTasks(occurrences);
   const visibleOccurrences = occurrences.filter(matchesCurrentFilter);
   const gridOccurrences = getGridOccurrences(occurrences);
   const scheduleDisplayOccurrences = scheduleView === "month"
@@ -1460,6 +1462,12 @@ function doesTaskRepeatOnDate(task, day) {
   return matchesWeeklyDay;
 }
 
+function doesTaskOccurOnDate(task, isoDate) {
+  if (!isISODateString(isoDate)) return false;
+  if (!task.repeats) return task.date === isoDate;
+  return doesTaskRepeatOnDate(task, parseISODate(isoDate));
+}
+
 function getTaskRepeatModeValue(task) {
   if (task?.repeatMode === "interval") return "interval";
   if (task?.repeatMode === "specific") return "specific";
@@ -1585,7 +1593,7 @@ function createTodayNextTask(todaysTasks) {
 
 function getNextTodayTask(todaysTasks) {
   const unfinished = todaysTasks
-    .filter((task) => !task.done && !isAllDayTask(task))
+    .filter((task) => !task.done && !isAllDayTask(task) && !isReminderItem(task))
     .sort((first, second) => timeToMinutes(first.time) - timeToMinutes(second.time));
   if (!unfinished.length) return null;
 
@@ -6543,11 +6551,18 @@ function isTimerComplete(timer) {
   return Boolean(timer) && !isStopwatchTimer(timer) && getTimerRemainingMs(timer) === 0;
 }
 
-function syncActiveTimerWithTasks() {
+function syncActiveTimerWithTasks(occurrences = null) {
   if (!activeTimer) return;
 
   const matchingTask = tasks.find((task) => task.id === activeTimer.taskId);
-  if (!matchingTask) {
+  if (
+    !matchingTask
+    || isReminderItem(matchingTask)
+    || isAllDayTask(matchingTask)
+    || !doesTaskOccurOnDate(matchingTask, activeTimer.occurrenceDate)
+    || isActiveTimerStale(activeTimer)
+    || (Array.isArray(occurrences) && !occurrences.some((task) => isActiveTimerFor(task)))
+  ) {
     clearActiveTimer();
     return;
   }
@@ -6556,6 +6571,21 @@ function syncActiveTimerWithTasks() {
   if (occurrence.done || occurrence.skipped || isReminderItem(occurrence)) {
     clearActiveTimer();
   }
+}
+
+function isActiveTimerStale(timer) {
+  if (!timer) return false;
+
+  const startedAt = Number(timer.startedAt);
+  if (!Number.isFinite(startedAt) || startedAt <= 0) return true;
+  if (startedAt > Date.now() + 60000) return true;
+  if (timer.occurrenceDate !== todayISO) return true;
+
+  const elapsedMs = Date.now() - startedAt;
+  if (isStopwatchTimer(timer)) return elapsedMs > STOPWATCH_TIMER_STALE_MS;
+
+  const durationMs = normalizeTaskDuration(timer.duration) * 60 * 1000;
+  return elapsedMs > durationMs + ACTIVE_TIMER_STALE_BUFFER_MS;
 }
 
 function renderFocusOverlay(occurrences) {
@@ -6619,13 +6649,20 @@ function loadActiveTimer() {
     const savedTimer = JSON.parse(localStorage.getItem(getProfileStorageKey(TIMER_STORAGE_KEY)));
     if (!savedTimer?.taskId || !savedTimer?.occurrenceDate || !savedTimer?.startedAt) return null;
 
-    return {
+    const timer = {
       taskId: savedTimer.taskId,
       occurrenceDate: savedTimer.occurrenceDate,
       duration: Number(savedTimer.duration),
       timerMode: normalizeTimerMode(savedTimer.timerMode),
       startedAt: Number(savedTimer.startedAt),
     };
+
+    if (isActiveTimerStale(timer)) {
+      localStorage.removeItem(getProfileStorageKey(TIMER_STORAGE_KEY));
+      return null;
+    }
+
+    return timer;
   } catch {
     return null;
   }
