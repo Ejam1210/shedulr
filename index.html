@@ -131,6 +131,7 @@
               <div class="auth-actions">
                 <button class="primary-button" type="submit">Log in</button>
                 <button class="secondary-button" id="signupButton" type="button">Sign up</button>
+                <button class="secondary-button resend-verification-button hidden" id="resendVerificationButton" type="button">Resend verification</button>
               </div>
             </form>
 
@@ -941,17 +942,25 @@
         <div class="schedule-header">
           <div>
             <h2>Completed Tasks</h2>
-            <p>Tasks you finished today, with xp earned from each one.</p>
+            <p id="completedPanelDescription">Tasks you finished on the selected day, with xp earned from each one.</p>
           </div>
-          <div class="points-total">
-            <span id="completedPoints">0</span>
-            <small>xp today</small>
+          <div class="completed-header-actions">
+            <div class="schedule-date-controls completed-date-controls" aria-label="Completed tasks date">
+              <button id="completedPrevDate" type="button" aria-label="Previous day">&lt;</button>
+              <input id="completedDatePicker" type="date" aria-label="Completed tasks date" />
+              <button id="completedNextDate" type="button" aria-label="Next day">&gt;</button>
+              <button id="completedTodayButton" type="button">Today</button>
+            </div>
+            <div class="points-total">
+              <span id="completedPoints">0</span>
+              <small id="completedPointsLabel">xp today</small>
+            </div>
           </div>
         </div>
 
         <div class="empty-state" id="completedEmptyState">
-          <h3>No completed tasks today</h3>
-          <p>Mark a task done from the Schedule tab and it will show up here.</p>
+          <h3 id="completedEmptyTitle">No completed tasks today</h3>
+          <p id="completedEmptyText">Mark a task done from the Schedule tab and it will show up here.</p>
         </div>
 
         <div class="task-list" id="completedTaskList"></div>
@@ -976,6 +985,14 @@
             <div class="note-editor-fields hidden" id="noteEditorFields">
               <input id="noteTitleInput" type="text" maxlength="80" placeholder="Untitled note" aria-label="Note title" />
               <div class="note-toolbar note-ribbon" aria-label="Note tools">
+                <div class="note-ribbon-group note-history-group" aria-label="History tools">
+                  <button class="note-icon-button" type="button" id="noteUndoButton" title="Undo" aria-label="Undo">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 7H5v4"></path>
+                      <path d="M5 11c2.6-3.7 8.9-5 12.3-1.6 2.6 2.6 2.4 6.8-.4 9"></path>
+                    </svg>
+                  </button>
+                </div>
                 <div class="note-ribbon-group note-text-format-group" aria-label="Text formatting">
                   <button class="note-icon-button note-format-button" type="button" data-note-command="bold" title="Bold" aria-label="Bold">B</button>
                   <button class="note-icon-button note-format-button" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><i>I</i></button>

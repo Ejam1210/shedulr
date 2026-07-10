@@ -60,6 +60,9 @@ const TASK_DOUBLE_TAP_MS = 380;
 const TASK_DOUBLE_TAP_DISTANCE = 28;
 const TASK_SWIPE_ACTIVATE_DISTANCE = 12;
 const TASK_SWIPE_DELETE_DISTANCE = 96;
+const TASK_SWIPE_VERTICAL_CANCEL_DISTANCE = 18;
+const TASK_SWIPE_HORIZONTAL_LOCK_RATIO = 1.35;
+const TASK_SWIPE_MAX_OFFSET = 128;
 const STREAK_MINUTES_TO_KEEP = 10;
 const TASK_REMINDER_INTERVAL_MS = 30 * 1000;
 const TASK_REMINDER_GRACE_MS = 2 * 60 * 1000;
@@ -135,9 +138,16 @@ const emptyState = document.querySelector("#emptyState");
 const overlapAlert = document.querySelector("#overlapAlert");
 const completedTaskList = document.querySelector("#completedTaskList");
 const completedEmptyState = document.querySelector("#completedEmptyState");
+const completedEmptyTitle = document.querySelector("#completedEmptyTitle");
+const completedEmptyText = document.querySelector("#completedEmptyText");
+const completedDatePicker = document.querySelector("#completedDatePicker");
+const completedPrevDateButton = document.querySelector("#completedPrevDate");
+const completedNextDateButton = document.querySelector("#completedNextDate");
+const completedTodayButton = document.querySelector("#completedTodayButton");
 const taskCount = document.querySelector("#taskCount");
 const completedCount = document.querySelector("#completedCount");
 const completedPoints = document.querySelector("#completedPoints");
+const completedPointsLabel = document.querySelector("#completedPointsLabel");
 const missedTasksPanel = document.querySelector("#missedTasksPanel");
 const missedTaskList = document.querySelector("#missedTaskList");
 const collapseMissedButton = document.querySelector("#collapseMissedButton");
@@ -244,6 +254,7 @@ const authForm = document.querySelector("#authForm");
 const authEmailInput = document.querySelector("#authEmail");
 const authPasswordInput = document.querySelector("#authPassword");
 const signupButton = document.querySelector("#signupButton");
+const resendVerificationButton = document.querySelector("#resendVerificationButton");
 const authSession = document.querySelector("#authSession");
 const authUserLabel = document.querySelector("#authUserLabel");
 const cloudStatus = document.querySelector("#cloudStatus");
@@ -380,6 +391,7 @@ const noteTitleInput = document.querySelector("#noteTitleInput");
 const notePage = document.querySelector("#notePage");
 const noteBodyEditor = document.querySelector("#noteBodyEditor");
 const noteToolbar = document.querySelector(".note-toolbar");
+const noteUndoButton = document.querySelector("#noteUndoButton");
 const noteFontSelect = document.querySelector("#noteFontSelect");
 const noteTextSizeSelect = document.querySelector("#noteTextSizeSelect");
 const noteSpeechButton = document.querySelector("#noteSpeechButton");
@@ -405,6 +417,7 @@ const todayISO = toDateInputValue(today);
 let cloudUser = null;
 let cloudSaveTimeout = null;
 let lastCloudSaveSnapshot = "";
+let lastVerificationEmail = "";
 let isApplyingCloudData = false;
 let isLoadingCloudData = false;
 let profiles = loadProfiles();
@@ -423,6 +436,7 @@ let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) ?? "light";
 let currentAccentTheme = localStorage.getItem(ACCENT_STORAGE_KEY) ?? "sleek";
 let scheduleView = "list";
 let scheduleAnchorDate = "";
+let completedAnchorDate = "";
 let homeGridAnchorDate = "";
 let homeGridRange = "day";
 let scheduleGridZoom = 1;
@@ -483,6 +497,8 @@ let noteDrawingState = null;
 let noteDrawingMode = "text";
 let notePenPreset = "pen";
 let noteEraserMode = "pixel";
+let noteDrawingRenderToken = 0;
+let noteDrawingUndoStack = [];
 
 const NOTE_PEN_PRESETS = {
   pen: { color: "#2e7d5b", size: 5, alpha: 1 },
@@ -611,9 +627,11 @@ const ACCENT_THEMES = {
 };
 
 scheduleAnchorDate = todayISO;
+completedAnchorDate = todayISO;
 homeGridAnchorDate = todayISO;
 taskDateInput.value = todayISO;
 scheduleDatePicker.value = scheduleAnchorDate;
+if (completedDatePicker) completedDatePicker.value = completedAnchorDate;
 scheduleGridRange.value = "week";
 if (homeGridDatePicker) homeGridDatePicker.value = homeGridAnchorDate;
 friends = loadFriends();
@@ -707,6 +725,10 @@ scheduleDatePicker.addEventListener("change", () => setScheduleAnchorDate(schedu
 schedulePrevDateButton.addEventListener("click", () => shiftScheduleAnchorDate(-getScheduleNavigationStep()));
 scheduleNextDateButton.addEventListener("click", () => shiftScheduleAnchorDate(getScheduleNavigationStep()));
 scheduleTodayButton.addEventListener("click", () => setScheduleAnchorDate(todayISO));
+completedDatePicker?.addEventListener("change", () => setCompletedAnchorDate(completedDatePicker.value));
+completedPrevDateButton?.addEventListener("click", () => shiftCompletedAnchorDate(-1));
+completedNextDateButton?.addEventListener("click", () => shiftCompletedAnchorDate(1));
+completedTodayButton?.addEventListener("click", () => setCompletedAnchorDate(todayISO));
 statsRange.addEventListener("change", render);
 scheduleGrid.addEventListener("wheel", handleScheduleGridZoom, { passive: false });
 scheduleGrid.addEventListener("touchstart", handleGridTouchStart, { passive: false });
@@ -753,6 +775,7 @@ noteTitleInput?.addEventListener("input", saveActiveNoteFromEditor);
 noteBodyEditor?.addEventListener("input", saveActiveNoteFromEditor);
 noteBodyEditor?.addEventListener("paste", handleNotePaste);
 noteToolbar?.addEventListener("click", handleNoteToolbarClick);
+noteUndoButton?.addEventListener("click", undoNoteAction);
 noteFontSelect?.addEventListener("change", applyNoteFont);
 noteTextSizeSelect?.addEventListener("change", applyNoteTextSize);
 noteSpeechButton?.addEventListener("click", toggleNoteSpeechToText);
@@ -911,6 +934,7 @@ profilePhotoInput.addEventListener("change", updateProfilePhoto);
 removeProfilePhotoButton.addEventListener("click", removeProfilePhoto);
 authForm.addEventListener("submit", signInWithEmail);
 signupButton.addEventListener("click", signUpWithEmail);
+resendVerificationButton?.addEventListener("click", resendVerificationEmail);
 loadCloudButton.addEventListener("click", loadCloudData);
 syncNowButton.addEventListener("click", saveCloudDataNow);
 logoutButton.addEventListener("click", signOut);
@@ -1310,11 +1334,14 @@ function render() {
   );
   const pointsToday = completedToday.reduce((total, task) => total + calculatePoints(task), 0);
   const completedHistory = buildCompletedHistory();
+  const completedForSelectedDate = completedHistory.filter((task) => task.occurrenceDate === completedAnchorDate);
+  const pointsForSelectedDate = completedForSelectedDate.reduce((total, task) => total + calculatePoints(task), 0);
   currentTypeStreaks = buildTypeStreakMap(completedHistory);
 
   taskCount.textContent = tasks.length;
   completedCount.textContent = completedToday.length;
-  completedPoints.textContent = formatPoints(pointsToday);
+  completedPoints.textContent = formatPoints(pointsForSelectedDate);
+  if (completedPointsLabel) completedPointsLabel.textContent = completedAnchorDate === todayISO ? "xp today" : "xp this day";
   updateTopXp(pointsToday);
   renderTopStreakStatus(completedHistory, getTopStreakDays(completedHistory));
   renderTodaySummary(occurrences);
@@ -1352,8 +1379,7 @@ function render() {
   renderTaskSelectionState();
   renderSelectionToolbars();
   renderOverlapAlert(scheduleView === "month" ? [] : scheduleView === "grid" ? scheduleDisplayOccurrences : visibleOccurrences);
-  completedTaskList.innerHTML = completedToday.map(createCompletedTaskCard).join("");
-  completedEmptyState.classList.toggle("visible", completedToday.length === 0);
+  renderCompletedDateControls(completedForSelectedDate);
   weeklyReport.innerHTML = createWeeklyReport(completedHistory);
   statsGrid.innerHTML = createStatsPanel(completedHistory);
   renderWeeklyReportOverlay(completedHistory);
@@ -3028,6 +3054,7 @@ function startTaskSwipe(event) {
   if (scheduleView !== "list") return;
   if (event.button !== undefined && event.button !== 0) return;
   if (event.isPrimary === false) return;
+  if (!["touch", "pen"].includes(event.pointerType || "mouse")) return;
   if (event.target.closest("button, input, select, textarea, a")) return;
 
   const taskCard = event.target.closest(".task-card[data-task-id][data-occurrence-date]");
@@ -3042,6 +3069,7 @@ function startTaskSwipe(event) {
     sourceElement: taskCard,
     startX: event.clientX,
     startY: event.clientY,
+    maxOffset: 0,
     active: false,
   };
 }
@@ -3057,10 +3085,12 @@ function updateTaskSwipe(event) {
   if (!taskSwipeState.active) {
     if (absX < TASK_SWIPE_ACTIVATE_DISTANCE && absY < TASK_SWIPE_ACTIVATE_DISTANCE) return;
 
-    if (deltaX >= 0 || absY > absX * 1.25) {
+    if (absY >= TASK_SWIPE_VERTICAL_CANCEL_DISTANCE && absY > absX) {
       cancelTaskSwipe();
       return;
     }
+
+    if (deltaX >= 0 || absX < absY * TASK_SWIPE_HORIZONTAL_LOCK_RATIO) return;
 
     taskSwipeState.active = true;
     clearHoldToEdit();
@@ -3074,7 +3104,8 @@ function updateTaskSwipe(event) {
   }
 
   event.preventDefault();
-  const offset = clamp(deltaX, -132, 0);
+  const offset = clamp(deltaX, -TASK_SWIPE_MAX_OFFSET, 0);
+  taskSwipeState.maxOffset = Math.min(taskSwipeState.maxOffset, offset);
   taskSwipeState.sourceElement.style.transform = `translateX(${offset}px)`;
   taskSwipeState.sourceElement.classList.toggle(
     "swipe-delete-ready",
@@ -3087,7 +3118,9 @@ function finishTaskSwipe(event) {
 
   const state = taskSwipeState;
   const deltaX = event.clientX - state.startX;
-  const shouldDelete = state.active && deltaX <= -getTaskSwipeDeleteDistance(state);
+  const shouldDelete = state.active
+    && deltaX <= -getTaskSwipeDeleteDistance(state)
+    && Math.abs(deltaX) > Math.abs(event.clientY - state.startY) * TASK_SWIPE_HORIZONTAL_LOCK_RATIO;
 
   if (state.active) {
     event.preventDefault();
@@ -4113,10 +4146,10 @@ function createTaskCard(task) {
           ${meetingLinkChip}
         </div>
       </div>
-      <div class="task-actions ${isAllDay ? "hidden" : ""}">
+      <div class="task-actions ${isAllDay ? "all-day-actions" : ""}">
         ${timerButton}
         ${undoButton}
-        <button class="icon-button delete" type="button" data-action="delete" title="Delete" aria-label="Delete">
+        <button class="icon-button delete" type="button" data-action="delete" title="${isAllDay ? "Delete all-day event" : "Delete"}" aria-label="${isAllDay ? "Delete all-day event" : "Delete"}">
           x
         </button>
       </div>
@@ -5500,6 +5533,47 @@ function getHomeGridNavigationStep() {
   return homeGridRange === "week" ? 7 : 1;
 }
 
+function setCompletedAnchorDate(value) {
+  if (!value) return;
+
+  const nextDate = parseISODate(value);
+  if (Number.isNaN(nextDate.getTime())) {
+    if (completedDatePicker) completedDatePicker.value = completedAnchorDate;
+    return;
+  }
+
+  completedAnchorDate = toDateInputValue(nextDate > today ? today : nextDate);
+  render();
+}
+
+function shiftCompletedAnchorDate(amount) {
+  setCompletedAnchorDate(toDateInputValue(addDays(parseISODate(completedAnchorDate), amount)));
+}
+
+function renderCompletedDateControls(completedTasks) {
+  const selectedDateLabel = completedAnchorDate === todayISO ? "today" : formatDateHeading(completedAnchorDate);
+  if (completedDatePicker) {
+    completedDatePicker.max = todayISO;
+    completedDatePicker.value = completedAnchorDate;
+  }
+  if (completedNextDateButton) completedNextDateButton.disabled = completedAnchorDate >= todayISO;
+
+  completedTaskList.innerHTML = completedTasks.map(createCompletedTaskCard).join("");
+  completedEmptyState.classList.toggle("visible", completedTasks.length === 0);
+
+  if (completedEmptyTitle) {
+    completedEmptyTitle.textContent = completedAnchorDate === todayISO
+      ? "No completed tasks today"
+      : `No completed tasks on ${selectedDateLabel}`;
+  }
+
+  if (completedEmptyText) {
+    completedEmptyText.textContent = completedAnchorDate === todayISO
+      ? "Mark a task done from the Schedule tab and it will show up here."
+      : "Use the date controls above to look through another day.";
+  }
+}
+
 function getTimelineHeight(totalMinutes, zoom = scheduleGridZoom) {
   return Math.round(totalMinutes * GRID_MINUTE_HEIGHT * zoom);
 }
@@ -6063,11 +6137,11 @@ function buildPersonalLeagueState(completedHistory) {
   0);
   const current = PERSONAL_LEAGUES[currentIndex];
   const next = PERSONAL_LEAGUES[currentIndex + 1] ?? null;
-  const nextAverageProgress = next?.minAverageXp
-    ? clamp((averageXp / next.minAverageXp) * 100, 0, 100)
+  const nextAverageProgress = next
+    ? clamp(((averageXp - current.minAverageXp) / Math.max(next.minAverageXp - current.minAverageXp, 1)) * 100, 0, 100)
     : 100;
-  const nextActiveProgress = next?.minActiveDays
-    ? clamp((activeDays / next.minActiveDays) * 100, 0, 100)
+  const nextActiveProgress = next
+    ? clamp(((activeDays - current.minActiveDays) / Math.max(next.minActiveDays - current.minActiveDays, 1)) * 100, 0, 100)
     : 100;
   const nextProgress = next ? Math.round(Math.min(nextAverageProgress, nextActiveProgress)) : 100;
   const activityRate = dailyStats.length ? (activeDays / dailyStats.length) * 100 : 0;
@@ -8154,6 +8228,8 @@ async function signUpWithEmail() {
 
   if (data.session?.user) {
     cloudUser = data.session.user;
+    lastVerificationEmail = "";
+    resendVerificationButton?.classList.add("hidden");
     updateAuthUI();
     await loadShedulrDirectoryProfile();
     await saveCloudDataNow();
@@ -8163,7 +8239,45 @@ async function signUpWithEmail() {
     return;
   }
 
+  lastVerificationEmail = credentials.email;
+  resendVerificationButton?.classList.remove("hidden");
   setCloudStatus("Account created. Check your email to confirm it, then log in.");
+}
+
+async function resendVerificationEmail() {
+  if (!supabaseClient) return;
+  if (typeof supabaseClient.auth?.resend !== "function") {
+    setCloudStatus("Resend verification is not available in this browser session. Refresh and try again.");
+    return;
+  }
+
+  const email = String(authEmailInput.value || lastVerificationEmail).trim().toLowerCase();
+  if (!email) {
+    authEmailInput.focus();
+    setCloudStatus("Enter your email, then press Resend verification.");
+    return;
+  }
+
+  lastVerificationEmail = email;
+  resendVerificationButton?.classList.remove("hidden");
+  if (resendVerificationButton) resendVerificationButton.disabled = true;
+  setCloudStatus("Sending another verification email...");
+
+  const emailRedirectTo = getAuthRedirectUrl();
+  const { error } = await supabaseClient.auth.resend({
+    type: "signup",
+    email,
+    ...(emailRedirectTo ? { options: { emailRedirectTo } } : {}),
+  });
+
+  if (resendVerificationButton) resendVerificationButton.disabled = false;
+
+  if (error) {
+    setCloudStatus(error.message);
+    return;
+  }
+
+  setCloudStatus("Verification email sent again. Check your inbox or spam folder.");
 }
 
 async function signOut() {
@@ -8172,6 +8286,8 @@ async function signOut() {
   setCloudStatus("Logging out...");
   await supabaseClient.auth.signOut();
   cloudUser = null;
+  lastVerificationEmail = "";
+  resendVerificationButton?.classList.add("hidden");
   lastCloudSaveSnapshot = "";
   cloudDirectoryProfile = null;
   taskInvites = [];
@@ -8272,6 +8388,8 @@ function updateAuthUI() {
 
   if (signedIn) {
     authPasswordInput.value = "";
+    lastVerificationEmail = "";
+    resendVerificationButton?.classList.add("hidden");
     setCloudStatus("Signed in. Changes will sync to your cloud account.");
   } else {
     setCloudStatus("Sign in to sync this schedule across your devices.");
@@ -11017,6 +11135,7 @@ function handleNotesListClick(event) {
   if (!noteButton) return;
 
   activeNoteId = noteButton.dataset.noteId;
+  noteDrawingUndoStack = [];
   renderNotes();
 }
 
@@ -11035,6 +11154,7 @@ function createNote() {
 
   notes = [note, ...notes];
   activeNoteId = note.id;
+  noteDrawingUndoStack = [];
   saveNotes();
   renderNotes();
   requestAnimationFrame(() => {
@@ -11080,6 +11200,17 @@ function handleNoteToolbarClick(event) {
   event.preventDefault();
   focusNoteEditor();
   document.execCommand(button.dataset.noteCommand, false, null);
+  saveActiveNoteFromEditor();
+}
+
+function undoNoteAction() {
+  const activeNote = getActiveNote();
+  if (!activeNote) return;
+
+  if (noteDrawingMode !== "text" && undoNoteDrawingAction()) return;
+
+  focusNoteEditor();
+  document.execCommand("undo", false, null);
   saveActiveNoteFromEditor();
 }
 
@@ -11254,7 +11385,7 @@ function drawNoteStroke(event) {
   event.preventDefault();
   const point = getCanvasPoint(event);
   if (noteDrawingState.strokeEraser) {
-    noteDrawingState.dirty = eraseNoteStrokesAtPoint(point) || noteDrawingState.dirty;
+    noteDrawingState.dirty = eraseNoteStrokesAtPoint(point, { x: noteDrawingState.lastX, y: noteDrawingState.lastY }) || noteDrawingState.dirty;
     noteDrawingState.lastX = point.x;
     noteDrawingState.lastY = point.y;
     return;
@@ -11280,10 +11411,62 @@ function finishNoteDrawing(event) {
   const finishedStroke = noteDrawingState.currentStroke;
   const shouldSave = Boolean(noteDrawingState.dirty || finishedStroke?.points?.length > 1);
   if (finishedStroke?.points?.length > 1) {
+    pushNoteDrawingUndoSnapshot();
     appendNoteDrawingStroke(finishedStroke);
   }
   noteDrawingState = null;
   if (shouldSave) saveActiveNoteDrawing();
+}
+
+function pushNoteDrawingUndoSnapshot() {
+  const activeNote = getActiveNote();
+  if (!activeNote) return;
+
+  noteDrawingUndoStack = [
+    ...noteDrawingUndoStack,
+    {
+      noteId: activeNote.id,
+      drawingBaseDataUrl: activeNote.drawingBaseDataUrl || "",
+      drawingDataUrl: activeNote.drawingDataUrl || "",
+      drawingStrokes: normalizeNoteDrawingStrokes(activeNote.drawingStrokes),
+    },
+  ].slice(-30);
+}
+
+function undoNoteDrawingAction() {
+  const activeNote = getActiveNote();
+  if (!activeNote) return false;
+
+  let snapshotIndex = -1;
+  for (let index = noteDrawingUndoStack.length - 1; index >= 0; index -= 1) {
+    if (noteDrawingUndoStack[index].noteId === activeNote.id) {
+      snapshotIndex = index;
+      break;
+    }
+  }
+  if (snapshotIndex < 0) {
+    if (noteSavedStatus) noteSavedStatus.textContent = "Nothing to undo";
+    return false;
+  }
+
+  const snapshot = noteDrawingUndoStack[snapshotIndex];
+  noteDrawingUndoStack = noteDrawingUndoStack.filter((_, index) => index !== snapshotIndex);
+  notes = notes.map((note) =>
+    note.id === activeNote.id
+      ? {
+          ...note,
+          drawingBaseDataUrl: snapshot.drawingBaseDataUrl,
+          drawingDataUrl: snapshot.drawingDataUrl,
+          drawingStrokes: normalizeNoteDrawingStrokes(snapshot.drawingStrokes),
+          updatedAt: new Date().toISOString(),
+        }
+      : note,
+  );
+  saveNotes();
+  renderActiveNoteDrawing();
+  renderNoteListOnly();
+  if (noteSavedStatus) noteSavedStatus.textContent = "Undid drawing";
+  return true;
 }
 
 function createNoteDrawingStroke(startPoint) {
@@ -11359,15 +11542,21 @@ function drawStoredNoteStroke(context, stroke) {
   const points = getScaledNoteStrokePoints(stroke);
   if (points.length < 2) return;
 
-  const scaleX = noteDrawingCanvas.width / (Number(stroke.canvasWidth) || noteDrawingCanvas.width);
-  const scaleY = noteDrawingCanvas.height / (Number(stroke.canvasHeight) || noteDrawingCanvas.height);
   const scaledStroke = {
     ...stroke,
-    size: (Number(stroke.size) || 5) * Math.max(scaleX, scaleY),
+    size: getScaledNoteStrokeSize(stroke),
   };
   points.slice(1).forEach((point, index) => {
     drawNoteSegment(context, points[index], point, scaledStroke);
   });
+}
+
+function getScaledNoteStrokeSize(stroke) {
+  const sourceWidth = Number(stroke.canvasWidth) || noteDrawingCanvas?.width || 1;
+  const sourceHeight = Number(stroke.canvasHeight) || noteDrawingCanvas?.height || 1;
+  const scaleX = (noteDrawingCanvas?.width || sourceWidth) / sourceWidth;
+  const scaleY = (noteDrawingCanvas?.height || sourceHeight) / sourceHeight;
+  return (Number(stroke.size) || 5) * Math.max(scaleX, scaleY);
 }
 
 function getScaledNoteStrokePoints(stroke) {
@@ -11382,17 +11571,25 @@ function getScaledNoteStrokePoints(stroke) {
   }));
 }
 
-function eraseNoteStrokesAtPoint(point) {
+function eraseNoteStrokesAtPoint(point, previousPoint = null) {
   const activeNote = getActiveNote();
   if (!activeNote || !noteDrawingCanvas) return false;
 
   const strokes = normalizeNoteDrawingStrokes(activeNote.drawingStrokes);
   const radius = Math.max((Number(notePenSizeInput?.value) || 8) * 1.8, 14);
-  const remainingStrokes = strokes.filter((stroke) =>
-    stroke.tool === "eraser" || !isNoteStrokeNearPoint(stroke, point, radius),
-  );
+  const remainingStrokes = strokes.filter((stroke) => {
+    if (stroke.tool === "eraser") return true;
+    const shouldErase = previousPoint
+      ? isNoteStrokeNearPath(stroke, previousPoint, point, radius)
+      : isNoteStrokeNearPoint(stroke, point, radius);
+    return !shouldErase;
+  });
   if (remainingStrokes.length === strokes.length) return false;
 
+  if (!noteDrawingState?.undoSnapshotPushed) {
+    pushNoteDrawingUndoSnapshot();
+    if (noteDrawingState) noteDrawingState.undoSnapshotPushed = true;
+  }
   notes = notes.map((note) =>
     note.id === activeNote.id
       ? { ...note, drawingStrokes: remainingStrokes, updatedAt: new Date().toISOString() }
@@ -11406,9 +11603,19 @@ function isNoteStrokeNearPoint(stroke, point, radius) {
   const points = getScaledNoteStrokePoints(stroke);
   if (points.length < 2) return false;
 
-  const strokeRadius = radius + (Number(stroke.size) || 5) / 2;
+  const strokeRadius = radius + getScaledNoteStrokeSize(stroke) / 2;
   return points.slice(1).some((nextPoint, index) =>
     distanceToNoteSegment(point, points[index], nextPoint) <= strokeRadius,
+  );
+}
+
+function isNoteStrokeNearPath(stroke, fromPoint, toPoint, radius) {
+  const points = getScaledNoteStrokePoints(stroke);
+  if (points.length < 2) return false;
+
+  const strokeRadius = radius + getScaledNoteStrokeSize(stroke) / 2;
+  return points.slice(1).some((nextPoint, index) =>
+    distanceBetweenNoteSegments(fromPoint, toPoint, points[index], nextPoint) <= strokeRadius,
   );
 }
 
@@ -11421,6 +11628,38 @@ function distanceToNoteSegment(point, start, end) {
   const closestX = start.x + t * dx;
   const closestY = start.y + t * dy;
   return Math.hypot(point.x - closestX, point.y - closestY);
+}
+
+function distanceBetweenNoteSegments(aStart, aEnd, bStart, bEnd) {
+  if (doNoteSegmentsIntersect(aStart, aEnd, bStart, bEnd)) return 0;
+
+  return Math.min(
+    distanceToNoteSegment(aStart, bStart, bEnd),
+    distanceToNoteSegment(aEnd, bStart, bEnd),
+    distanceToNoteSegment(bStart, aStart, aEnd),
+    distanceToNoteSegment(bEnd, aStart, aEnd),
+  );
+}
+
+function doNoteSegmentsIntersect(aStart, aEnd, bStart, bEnd) {
+  const epsilon = 0.0001;
+  const direction = (first, second, third) =>
+    (third.x - first.x) * (second.y - first.y) - (second.x - first.x) * (third.y - first.y);
+  const isOnSegment = (first, second, third) =>
+    Math.min(first.x, second.x) - epsilon <= third.x && third.x <= Math.max(first.x, second.x) + epsilon
+    && Math.min(first.y, second.y) - epsilon <= third.y && third.y <= Math.max(first.y, second.y) + epsilon;
+
+  const d1 = direction(aStart, aEnd, bStart);
+  const d2 = direction(aStart, aEnd, bEnd);
+  const d3 = direction(bStart, bEnd, aStart);
+  const d4 = direction(bStart, bEnd, aEnd);
+
+  if (((d1 > epsilon && d2 < -epsilon) || (d1 < -epsilon && d2 > epsilon))
+    && ((d3 > epsilon && d4 < -epsilon) || (d3 < -epsilon && d4 > epsilon))) return true;
+  return (Math.abs(d1) <= epsilon && isOnSegment(aStart, aEnd, bStart))
+    || (Math.abs(d2) <= epsilon && isOnSegment(aStart, aEnd, bEnd))
+    || (Math.abs(d3) <= epsilon && isOnSegment(bStart, bEnd, aStart))
+    || (Math.abs(d4) <= epsilon && isOnSegment(bStart, bEnd, aEnd));
 }
 
 function getCanvasPoint(event) {
@@ -11448,6 +11687,7 @@ function syncNoteCanvasSize() {
 function renderActiveNoteDrawing() {
   if (!noteDrawingCanvas) return;
 
+  const renderToken = ++noteDrawingRenderToken;
   syncNoteCanvasSize();
   const context = noteDrawingCanvas.getContext("2d");
   context.clearRect(0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
@@ -11466,6 +11706,7 @@ function renderActiveNoteDrawing() {
 
   const image = new Image();
   image.addEventListener("load", () => {
+    if (renderToken !== noteDrawingRenderToken || getActiveNote()?.id !== activeNote.id) return;
     context.clearRect(0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
     context.drawImage(image, 0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);
     renderStrokes();
@@ -11495,7 +11736,12 @@ function saveActiveNoteDrawing() {
 }
 
 function clearNoteDrawing() {
-  if (!noteDrawingCanvas || !getActiveNote()) return;
+  const activeNote = getActiveNote();
+  if (!noteDrawingCanvas || !activeNote) return;
+
+  if (activeNote.drawingBaseDataUrl || activeNote.drawingDataUrl || normalizeNoteDrawingStrokes(activeNote.drawingStrokes).length > 0) {
+    pushNoteDrawingUndoSnapshot();
+  }
 
   const context = noteDrawingCanvas.getContext("2d");
   context.clearRect(0, 0, noteDrawingCanvas.width, noteDrawingCanvas.height);

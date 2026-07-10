@@ -591,10 +591,12 @@ textarea {
 }
 
 .brand-group {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   min-width: 0;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   justify-self: start;
 }
 
@@ -801,9 +803,11 @@ textarea {
 }
 
 .top-actions {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   justify-self: end;
 }
 
@@ -1979,6 +1983,10 @@ p {
 
 .auth-form .auth-actions {
   grid-template-columns: 1fr 1fr;
+}
+
+.auth-form .resend-verification-button {
+  grid-column: 1 / -1;
 }
 
 .auth-actions .primary-button,
@@ -4054,6 +4062,19 @@ body[data-accent-theme="mono"] .today-progress-ring {
   max-width: 220px;
 }
 
+.completed-header-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.completed-date-controls {
+  flex: 1 1 340px;
+}
+
 .schedule-controls {
   display: flex;
   align-items: center;
@@ -4269,6 +4290,11 @@ body[data-accent-theme="mono"] .today-progress-ring {
 .schedule-date-controls button:hover,
 .schedule-date-controls input:hover {
   background: var(--quiet-control-hover-bg);
+}
+
+.schedule-date-controls button:disabled {
+  cursor: default;
+  opacity: 0.44;
 }
 
 .schedule-date-controls input {
@@ -4924,6 +4950,10 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
   z-index: 1;
 }
 
+.task-list:has(.all-day-card) {
+  padding-left: 20px;
+}
+
 .task-list.hidden {
   display: none;
 }
@@ -4959,6 +4989,8 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
 
 .task-card.all-day-card {
   position: relative;
+  width: calc(100% + 12px);
+  margin-left: -12px;
   overflow: visible;
   border-left-color: var(--type-color, var(--green));
   background:
@@ -4968,19 +5000,28 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
 
 .task-card.all-day-card::after {
   position: absolute;
-  top: calc(100% - 3px);
+  top: calc(100% - 6px);
+  bottom: auto;
   left: -6px;
-  width: 2px;
+  z-index: 3;
+  width: 6px;
   height: 100dvh;
   max-height: 920px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--type-color, var(--green)), transparent 42%);
+  border-radius: 0 0 999px 999px;
+  background: color-mix(in srgb, var(--type-color, var(--green)), transparent 18%);
+  box-shadow: none;
   content: "";
   pointer-events: none;
 }
 
 .task-card.all-day-card + .task-card {
   margin-top: 2px;
+}
+
+.task-card.all-day-card .all-day-actions {
+  align-self: center;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
 }
 
 .all-day-note {
@@ -5521,16 +5562,17 @@ body[data-accent-theme="sleek"] .task-timer .time-up {
 
 #taskList .task-actions .icon-button.delete {
   display: inline-grid;
-  flex: 0 0 34px;
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  min-height: 34px;
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
   place-items: center;
   border: 0;
   background: transparent;
   color: var(--coral) !important;
-  font-size: 1rem;
+  font-size: 1.28rem;
+  font-weight: 950;
   line-height: 1;
   padding: 0;
   box-shadow: none;
@@ -7430,7 +7472,49 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 }
 
 .note-toolbar input[type="range"] {
-  width: 92px;
+  width: 112px;
+  height: 18px;
+  min-height: 18px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.note-toolbar input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--quiet-control-bg), var(--line) 18%);
+}
+
+.note-toolbar input[type="range"]::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  -webkit-appearance: none;
+  border: 3px solid var(--paper);
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--green), transparent 42%);
+}
+
+.note-toolbar input[type="range"]::-moz-range-track {
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--quiet-control-bg), var(--line) 18%);
+}
+
+.note-toolbar input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--paper);
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--green), transparent 42%);
 }
 
 .note-toolbar input[type="color"] {
@@ -8497,21 +8581,45 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   .topbar {
     --topbar-side-bleed: 0px;
     --topbar-side-fade: 12px;
-    display: flex;
+    display: grid;
+    grid-template-columns: 44px minmax(56px, max-content) minmax(50px, max-content) 44px 44px;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    column-gap: 8px;
     padding: 8px 10px 11px;
   }
 
   .brand-group {
-    flex: 0 0 auto;
-    gap: 7px;
-    justify-self: auto;
+    display: contents;
   }
 
   .app-titlebar {
     display: none;
+  }
+
+  .topbar .profile-button {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .topbar .top-xp-pill {
+    grid-column: 2;
+    justify-self: center;
+  }
+
+  .topbar .top-streak-pill {
+    grid-column: 3;
+    justify-self: center;
+  }
+
+  .topbar .topbar-stats-button {
+    grid-column: 4;
+    justify-self: center;
+  }
+
+  .topbar .floating-add-button {
+    grid-column: 5;
+    justify-self: end;
   }
 
   .profile-button,
@@ -8549,10 +8657,8 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   }
 
   .top-actions {
-    flex: 0 0 auto;
+    display: contents;
     align-items: center;
-    gap: 6px;
-    justify-self: auto;
   }
 
   .floating-add-button {
@@ -8603,6 +8709,7 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
 
   .today-pill,
   .schedule-header select,
+  .completed-header-actions,
   .schedule-controls,
   .schedule-date-controls,
   .points-total {
@@ -8633,6 +8740,12 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   }
 
   .schedule-date-controls #scheduleTodayButton {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(180px, 100%);
+  }
+
+  .schedule-date-controls #completedTodayButton {
     grid-column: 1 / -1;
     justify-self: center;
     width: min(180px, 100%);
@@ -8762,6 +8875,21 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
     grid-template-columns: 1fr;
   }
 
+  .task-list:has(.all-day-card) {
+    padding-left: 22px;
+  }
+
+  .task-card.all-day-card {
+    width: calc(100% + 14px);
+    margin-left: -14px;
+  }
+
+  .task-card.all-day-card::after {
+    left: -6px;
+    width: 6px;
+    top: calc(100% - 6px);
+  }
+
   .schedule-list-layout.timeline-enabled {
     grid-template-columns: 34px minmax(0, 1fr);
     gap: 8px;
@@ -8863,8 +8991,16 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   }
 
   #homePanel .home-overview {
+    display: contents;
     grid-column: auto;
     grid-row: auto;
+  }
+
+  #homePanel .home-week-panel {
+    order: -2;
+  }
+
+  #homePanel .home-day-grid-panel {
     order: 0;
   }
 
