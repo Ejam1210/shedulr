@@ -22,6 +22,10 @@
   --accent-border: rgba(46, 125, 91, 0.35);
   --selected-option-text: #172026;
   --coral: #c95f4f;
+  --today-red: #bc5a50;
+  --today-red-soft: rgba(188, 90, 80, 0.14);
+  --today-red-faint: rgba(188, 90, 80, 0.08);
+  --today-red-border: rgba(188, 90, 80, 0.34);
   --blue: #2d6f9f;
   --gold: #b2832f;
   --button-text: #ffffff;
@@ -53,6 +57,10 @@ body[data-theme="dark"] {
   --accent-border: rgba(113, 200, 156, 0.38);
   --selected-option-text: #ffffff;
   --coral: #f08a79;
+  --today-red: #f08a79;
+  --today-red-soft: rgba(240, 138, 121, 0.16);
+  --today-red-faint: rgba(240, 138, 121, 0.08);
+  --today-red-border: rgba(240, 138, 121, 0.38);
   --blue: #87c7e8;
   --gold: #e4ba67;
   --button-text: #0f1416;
@@ -299,6 +307,7 @@ body[data-theme="light"][data-accent-theme="sleek"] .theme-button.active,
 body[data-theme="light"][data-accent-theme="sleek"] .colour-button.active,
 body[data-theme="light"][data-accent-theme="sleek"] .setting-toggle:has(input:checked),
 body[data-theme="light"][data-accent-theme="sleek"] .repeat-toggle:has(input:checked),
+body[data-theme="light"][data-accent-theme="sleek"] .repeat-yearly-toggle:has(input:checked),
 body[data-theme="light"][data-accent-theme="sleek"] .weekday-picker label:has(input:checked) {
   color: var(--selected-option-text);
 }
@@ -332,6 +341,7 @@ body[data-theme="light"][data-accent-theme="mono"] .theme-button.active,
 body[data-theme="light"][data-accent-theme="mono"] .colour-button.active,
 body[data-theme="light"][data-accent-theme="mono"] .setting-toggle:has(input:checked),
 body[data-theme="light"][data-accent-theme="mono"] .repeat-toggle:has(input:checked),
+body[data-theme="light"][data-accent-theme="mono"] .repeat-yearly-toggle:has(input:checked),
 body[data-theme="light"][data-accent-theme="mono"] .weekday-picker label:has(input:checked),
 body[data-theme="light"][data-accent-theme="mono"] .bottom-tabbar .tab-button.active .tab-label,
 body[data-theme="light"][data-accent-theme="mono"] .bottom-tabbar .tab-button.active svg,
@@ -2540,6 +2550,23 @@ textarea:disabled,
   padding: 0 12px;
 }
 
+.repeat-yearly-toggle {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: end;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--quiet-control-bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 900;
+  padding: 0 12px;
+}
+
 .repeat-box input[type="checkbox"] {
   position: absolute;
   width: 1px;
@@ -2550,6 +2577,13 @@ textarea:disabled,
 }
 
 .repeat-toggle:has(input:checked) {
+  border-color: transparent;
+  background: var(--quiet-control-active-bg);
+  color: #fff;
+  box-shadow: none;
+}
+
+.repeat-yearly-toggle:has(input:checked) {
   border-color: transparent;
   background: var(--quiet-control-active-bg);
   color: #fff;
@@ -2584,10 +2618,15 @@ textarea:disabled,
   text-align: center;
 }
 
-.repeat-end-field {
+.repeat-end-field,
+.repeat-date-row {
   display: grid;
   gap: 6px;
   margin-top: 10px;
+}
+
+.repeat-date-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(112px, 0.55fr);
 }
 
 .weekday-picker {
@@ -3221,7 +3260,7 @@ body[data-accent-theme="mono"] .today-progress-ring {
   grid-template-columns: 34px minmax(126px, 152px) 34px auto;
 }
 
-.home-grid-controls .grid-range-select {
+.home-grid-controls .grid-range-toggle {
   width: auto;
   min-width: 104px;
 }
@@ -4357,6 +4396,7 @@ body[data-accent-theme="mono"] .today-progress-ring {
 .colour-button,
 .setting-toggle,
 .repeat-toggle,
+.repeat-yearly-toggle,
 .weekday-picker label,
 .view-button {
   transition:
@@ -4372,6 +4412,7 @@ body[data-accent-theme="mono"] .today-progress-ring {
 .colour-button:hover,
 .setting-toggle:hover,
 .repeat-toggle:hover,
+.repeat-yearly-toggle:hover,
 .weekday-picker label:hover,
 .view-button:hover {
   background: var(--quiet-control-hover-bg);
@@ -4390,8 +4431,10 @@ body[data-accent-theme="mono"] .today-progress-ring {
 .colour-button.active,
 .setting-toggle:has(input:checked),
 .repeat-toggle:has(input:checked),
+.repeat-yearly-toggle:has(input:checked),
 .weekday-picker label:has(input:checked),
-.view-button.active {
+.view-button.active,
+.grid-range-toggle[aria-pressed="true"] {
   border-color: transparent;
   background: var(--quiet-control-active-bg);
   color: #fff;
@@ -4667,6 +4710,27 @@ body[data-theme="dark"] .bottom-tabbar .tab-button.active .tab-count {
 
 .schedule-controls.grid-mode .grid-zoom-controls {
   display: flex;
+}
+
+.grid-range-toggle {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--quiet-control-bg);
+  color: var(--selected-option-text);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0 14px;
+  white-space: nowrap;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.grid-range-toggle:hover {
+  background: var(--quiet-control-hover-bg);
 }
 
 .grid-zoom-controls button {
@@ -5246,7 +5310,7 @@ body[data-accent-theme="sleek"] .task-timer .time-up {
   font-size: 1rem;
 }
 
-@media (pointer: coarse) {
+@media (hover: none) and (pointer: coarse) {
   #taskList .task-actions .icon-button.delete {
     display: none;
   }
@@ -5598,6 +5662,7 @@ body[data-accent-theme="sleek"] .task-timer .time-up {
 }
 
 .task-form .repeat-toggle,
+.task-form .repeat-yearly-toggle,
 .task-form .weekday-picker label {
   border-color: transparent;
   background: var(--quiet-control-bg);
@@ -5605,11 +5670,13 @@ body[data-accent-theme="sleek"] .task-timer .time-up {
 }
 
 .task-form .repeat-toggle:hover,
+.task-form .repeat-yearly-toggle:hover,
 .task-form .weekday-picker label:hover {
   background: var(--quiet-control-hover-bg);
 }
 
 .task-form .repeat-toggle:has(input:checked),
+.task-form .repeat-yearly-toggle:has(input:checked),
 .task-form .weekday-picker label:has(input:checked) {
   border-color: transparent;
   background: var(--quiet-control-active-bg);
@@ -5618,6 +5685,7 @@ body[data-accent-theme="sleek"] .task-timer .time-up {
 }
 
 body[data-theme="dark"] .task-form .repeat-toggle:has(input:checked),
+body[data-theme="dark"] .task-form .repeat-yearly-toggle:has(input:checked),
 body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   background: var(--quiet-control-active-bg);
 }
@@ -6690,6 +6758,10 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
     linear-gradient(180deg, color-mix(in srgb, var(--field), var(--soft) 22%), var(--field));
 }
 
+.timeline-board:has(.timeline-task:hover) {
+  overflow: visible;
+}
+
 .grid-current-time-dot {
   position: absolute;
   top: var(--current-grid-time-top, 50%);
@@ -6723,6 +6795,10 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 
 .week-day-column.today {
   background: color-mix(in srgb, var(--accent-faint), transparent 2%);
+}
+
+.week-day-column:has(.timeline-task:hover) {
+  z-index: 20;
 }
 
 .timeline-line {
@@ -6766,8 +6842,22 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 }
 
 .timeline-task:hover {
+  z-index: 30;
+  overflow: visible;
   border-color: color-mix(in srgb, var(--type-color), var(--line) 52%);
   box-shadow: 0 10px 22px rgba(23, 32, 38, 0.09);
+}
+
+.home-schedule-grid .week-day-column:has(.timeline-task:hover) {
+  z-index: 8;
+}
+
+.home-schedule-grid .timeline-task:hover {
+  z-index: 10;
+}
+
+.home-schedule-grid .timeline-task-tooltip {
+  z-index: 12;
 }
 
 .timeline-task:has(.timeline-action) {
@@ -6775,30 +6865,84 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 }
 
 .timeline-task.point-reminder {
-  height: max(calc(var(--task-height) - 4px), 28px);
-  min-height: 28px;
-  grid-template-columns: minmax(58px, auto) minmax(0, 1fr);
+  height: max(calc(var(--task-height) - 2px), 20px);
+  min-height: 20px;
+  grid-template-columns: minmax(44px, auto) minmax(0, 1fr);
   grid-template-rows: 1fr;
-  column-gap: 9px;
+  column-gap: 6px;
   row-gap: 0;
-  border-left-width: 4px;
-  padding: 4px 8px;
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 2px 6px;
 }
 
 .timeline-task.point-reminder .timeline-time {
   grid-row: auto;
   align-self: center;
-  font-size: 0.66rem;
+  font-size: 0.6rem;
+  line-height: 1;
 }
 
 .timeline-task.point-reminder .timeline-title {
   align-self: center;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   line-height: 1;
 }
 
 .timeline-task.point-reminder .timeline-meta {
   display: none;
+}
+
+.timeline-task-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 6px;
+  z-index: 60;
+  display: grid;
+  width: min(270px, calc(100vw - 44px));
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--type-color), var(--line) 58%);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 16px 40px rgba(16, 24, 30, 0.18);
+  color: var(--ink);
+  opacity: 0;
+  padding: 10px 11px;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.timeline-task-tooltip strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 950;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-task-tooltip small,
+.timeline-task-tooltip em {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.timeline-task-tooltip em {
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--ink), var(--muted) 34%);
+}
+
+.timeline-task:hover .timeline-task-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .timeline-action {
@@ -7087,6 +7231,32 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   display: none;
 }
 
+.schedule-grid-view.compact-15 .timeline-task.point-reminder,
+.schedule-grid-view.compact-30 .timeline-task.point-reminder,
+.schedule-grid-view.compact-15 .timeline-board:not(.week-board) > .timeline-task.point-reminder,
+.schedule-grid-view.compact-30 .timeline-board:not(.week-board) > .timeline-task.point-reminder {
+  grid-template-columns: minmax(44px, auto) minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  height: max(calc(var(--task-height) - 2px), 20px);
+  min-height: 20px;
+  column-gap: 6px;
+  padding: 2px 6px;
+}
+
+.schedule-grid-view.compact-15 .timeline-task.point-reminder .timeline-time,
+.schedule-grid-view.compact-30 .timeline-task.point-reminder .timeline-time {
+  grid-row: auto;
+  display: grid;
+  font-size: 0.6rem;
+}
+
+.schedule-grid-view.compact-15 .timeline-task.point-reminder .timeline-title,
+.schedule-grid-view.compact-30 .timeline-task.point-reminder .timeline-title {
+  align-self: center;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
 .schedule-grid-view.month-mode {
   max-height: none;
 }
@@ -7145,6 +7315,7 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 }
 
 .month-day-card.today {
+  background: var(--quiet-control-bg);
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--green), transparent 18%);
 }
 
@@ -7163,6 +7334,39 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 .month-day-card.today .month-date-number {
   background: var(--green);
   color: var(--button-text);
+}
+
+body[data-accent-theme="sleek"] .home-week-letter.today,
+body[data-accent-theme="mono"] .home-week-letter.today {
+  background: color-mix(in srgb, var(--white-theme-green), var(--field) 76%);
+  color: var(--white-theme-green-dark);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--white-theme-green), transparent 70%),
+    0 8px 22px color-mix(in srgb, var(--white-theme-green), transparent 86%);
+}
+
+body[data-accent-theme="sleek"] .week-days-header span.today,
+body[data-accent-theme="mono"] .week-days-header span.today {
+  border-color: var(--white-theme-green-border);
+  background: color-mix(in srgb, var(--white-theme-green), var(--field) 76%);
+  color: var(--white-theme-green-dark);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--white-theme-green), transparent 70%),
+    0 8px 22px color-mix(in srgb, var(--white-theme-green), transparent 86%);
+}
+
+body[data-accent-theme="sleek"] .month-day-card.today,
+body[data-accent-theme="mono"] .month-day-card.today {
+  border-color: var(--white-theme-green-border);
+  background: color-mix(in srgb, var(--white-theme-green), var(--field) 76%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--white-theme-green), transparent 70%),
+    0 8px 22px color-mix(in srgb, var(--white-theme-green), transparent 86%);
+}
+
+body[data-accent-theme="sleek"] .month-day-card.today .month-date-number,
+body[data-accent-theme="mono"] .month-day-card.today .month-date-number {
+  color: var(--white-theme-green-dark);
 }
 
 .month-day-card strong {
@@ -7893,26 +8097,6 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
   white-space: nowrap;
 }
 
-.weekly-goals-card {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 16px;
-  overflow: visible;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
-  box-shadow: var(--shadow);
-  padding: 20px;
-}
-
-.weekly-goals-card h3 {
-  margin-bottom: 6px;
-}
-
-.weekly-goals-card p {
-  margin-bottom: 0;
-}
-
 .weekly-report-dock {
   display: block;
   margin-top: 16px;
@@ -7921,21 +8105,6 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 .weekly-report-dock .weekly-report-card {
   margin-bottom: 0;
   box-shadow: 0 16px 48px rgba(23, 32, 38, 0.06);
-}
-
-.goal-controls {
-  display: grid;
-  grid-template-columns: minmax(220px, 360px);
-  gap: 12px;
-  overflow: visible;
-}
-
-.goal-controls label {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--field);
-  overflow: visible;
-  padding: 12px;
 }
 
 .weekly-report-card {
@@ -8116,6 +8285,76 @@ body[data-theme="dark"] .task-form .weekday-picker label:has(input:checked) {
 .goal-result.met {
   background: var(--accent-soft);
   color: var(--green-dark);
+}
+
+.weekly-report-next-goal {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  padding: 14px;
+}
+
+.weekly-report-next-goal.locked {
+  border-color: var(--accent-border);
+  background: var(--accent-faint);
+}
+
+.weekly-report-next-goal > span {
+  color: var(--green);
+  font-size: 0.76rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.weekly-report-next-goal > strong {
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.weekly-report-next-goal > small,
+.weekly-goal-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.weekly-goal-lock-form {
+  display: grid;
+  gap: 9px;
+  margin-top: 2px;
+}
+
+.weekly-goal-lock-form label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.weekly-goal-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.weekly-goal-input-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.weekly-goal-input-row span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 950;
+}
+
+.weekly-goal-lock-form.has-error .weekly-goal-note {
+  color: var(--coral);
 }
 
 .stat-card {
@@ -9063,7 +9302,7 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
     grid-template-columns: 34px minmax(0, 1fr) 34px 62px;
   }
 
-  .home-grid-controls .grid-range-select {
+.home-grid-controls .grid-range-toggle {
     flex: 1 1 112px;
     min-width: 0;
   }
@@ -9252,6 +9491,10 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
     grid-template-columns: 1fr;
   }
 
+  .repeat-date-row {
+    grid-template-columns: 1fr;
+  }
+
   .home-widget-grid-card {
     min-height: 420px;
   }
@@ -9307,6 +9550,7 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   }
 
   .task-form {
+    width: 100%;
     padding: 18px;
     overflow: visible;
   }
@@ -9324,30 +9568,61 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
     min-width: 0;
   }
 
+  .task-form-body > *,
+  .date-time-row > label {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .day-summary {
     padding: 18px;
   }
 
   .date-time-row {
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
   }
 
   .date-time-row label + label {
-    margin-top: 14px;
+    margin-top: 0;
+  }
+
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    font-size: 16px;
   }
 
   input[type="date"],
   input[type="time"] {
+    box-sizing: border-box;
     width: 100%;
     inline-size: 100%;
     max-width: 100%;
     max-inline-size: 100%;
-    font-size: 0.95rem;
+    min-width: 0;
+    min-inline-size: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    font-size: 16px;
     padding-inline: 10px;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-align: left;
   }
 
   .template-tools,
   .repeat-mode-field,
+  .repeat-date-row,
   .specific-date-picker,
   .duration-dial,
   .field-row-four {
@@ -9456,9 +9731,16 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
     width: 100%;
   }
 
-  .report-score-stack,
-  .goal-controls {
+  .report-score-stack {
     grid-template-columns: 1fr;
+  }
+
+  .weekly-goal-input-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .weekly-goal-input-row button {
+    grid-column: 1 / -1;
   }
 
   .weekly-metrics {
@@ -9509,11 +9791,12 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   }
 
   .timeline-task.point-reminder {
-    grid-template-columns: minmax(54px, auto) minmax(0, 1fr);
+    grid-template-columns: minmax(44px, auto) minmax(0, 1fr);
     align-items: center;
-    gap: 7px;
-    min-height: 28px;
-    padding: 4px 7px;
+    gap: 6px;
+    height: max(calc(var(--task-height) - 2px), 20px);
+    min-height: 20px;
+    padding: 2px 6px;
   }
 
   .timeline-task.point-reminder .timeline-time,
@@ -9543,11 +9826,15 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
 
   .notes-layout {
     grid-template-columns: 1fr;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .notes-sidebar,
   .note-editor {
     min-height: auto;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .notes-sidebar {
@@ -9559,10 +9846,15 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
 
   .note-ribbon {
     top: 64px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .note-ribbon-group {
     flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .note-text-format-group {
@@ -9578,6 +9870,22 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   .note-page,
   .note-body-editor {
     min-height: 420px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .note-toolbar,
+  .note-editor-fields,
+  .note-tool-palette,
+  .note-eraser-options,
+  .note-type-selects {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .note-toolbar select,
+  .note-toolbar input {
+    font-size: 16px;
   }
 
   .note-toolbar select,
@@ -9603,6 +9911,7 @@ body[data-accent-theme="mono"] .line-chart.trend-up .chart-dot {
   .note-tool-palette,
   .note-eraser-options {
     flex: 0 1 auto;
+    overflow-x: auto;
   }
 
   .stats-overview {

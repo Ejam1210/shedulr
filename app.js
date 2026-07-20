@@ -50,7 +50,7 @@ const GRID_COLLAPSED_GAP_MINUTES = 24;
 const GRID_MOVE_HOLD_MS = 600;
 const GRID_MOVE_CANCEL_DISTANCE = 12;
 const GRID_MOVE_SNAP_MINUTES = 5;
-const TIMELINE_POINT_REMINDER_LANE_MIN_PX = 34;
+const TIMELINE_POINT_REMINDER_LANE_MIN_PX = 18;
 const DEFAULT_TASK_DURATION_MINUTES = 30;
 const MIN_TASK_DURATION_MINUTES = 1;
 const MAX_TASK_DURATION_MINUTES = 300;
@@ -58,10 +58,10 @@ const STOPWATCH_VISUAL_DURATION_MINUTES = 30;
 const HOME_GRID_MINUTE_HEIGHT = 1.6;
 const TASK_DOUBLE_TAP_MS = 380;
 const TASK_DOUBLE_TAP_DISTANCE = 28;
-const TASK_SWIPE_ACTIVATE_DISTANCE = 12;
-const TASK_SWIPE_DELETE_DISTANCE = 96;
-const TASK_SWIPE_VERTICAL_CANCEL_DISTANCE = 18;
-const TASK_SWIPE_HORIZONTAL_LOCK_RATIO = 1.35;
+const TASK_SWIPE_ACTIVATE_DISTANCE = 8;
+const TASK_SWIPE_DELETE_DISTANCE = 84;
+const TASK_SWIPE_VERTICAL_CANCEL_DISTANCE = 24;
+const TASK_SWIPE_HORIZONTAL_LOCK_RATIO = 1.1;
 const TASK_SWIPE_MAX_OFFSET = 128;
 const STREAK_MINUTES_TO_KEEP = 10;
 const TASK_REMINDER_INTERVAL_MS = 30 * 1000;
@@ -154,7 +154,6 @@ const collapseMissedButton = document.querySelector("#collapseMissedButton");
 const weeklyReport = document.querySelector("#weeklyReport");
 const statsGrid = document.querySelector("#statsGrid");
 const statsRange = document.querySelector("#statsRange");
-const weeklyGoalInputs = document.querySelectorAll(".weekly-goal-select");
 const featureToggleInputs = document.querySelectorAll("[data-feature-toggle]");
 const todayCount = document.querySelector("#todayCount");
 const todaySummary = document.querySelector("#todaySummary");
@@ -170,6 +169,7 @@ const homeRankCard = document.querySelector("#homeRankCard");
 const homeWeekStrip = document.querySelector("#homeWeekStrip");
 const homeDayGrid = document.querySelector("#homeDayGrid");
 const homeGridRangeInput = document.querySelector("#homeGridRange");
+const homeGridRangeToggle = document.querySelector("#homeGridRangeToggle");
 const homeGridDatePicker = document.querySelector("#homeGridDatePicker");
 const homeGridPrevDateButton = document.querySelector("#homeGridPrevDate");
 const homeGridNextDateButton = document.querySelector("#homeGridNextDate");
@@ -182,6 +182,7 @@ const todayXpValue = document.querySelector("#todayXpValue");
 const topStreakPill = document.querySelector("#topStreakPill");
 const topStreakValue = document.querySelector("#topStreakValue");
 const scheduleGridRange = document.querySelector("#scheduleGridRange");
+const scheduleGridRangeToggle = document.querySelector("#scheduleGridRangeToggle");
 const schedulePanel = document.querySelector("#schedulePanel");
 const scheduleHeader = document.querySelector("#schedulePanel .schedule-header");
 const scheduleControls = document.querySelector(".schedule-controls");
@@ -222,7 +223,9 @@ const taskRepeatModeInput = document.querySelector("#taskRepeatMode");
 const repeatIntervalField = document.querySelector("#repeatIntervalField");
 const taskRepeatIntervalDaysInput = document.querySelector("#taskRepeatIntervalDays");
 const repeatEndField = document.querySelector("#repeatEndField");
+const taskRepeatStartDateInput = document.querySelector("#taskRepeatStartDate");
 const taskRepeatEndDateInput = document.querySelector("#taskRepeatEndDate");
+const taskRepeatYearlyInput = document.querySelector("#taskRepeatYearly");
 const weekdayPicker = document.querySelector("#weekdayPicker");
 const specificDatePicker = document.querySelector("#specificDatePicker");
 const specificRepeatDateInput = document.querySelector("#specificRepeatDate");
@@ -339,6 +342,7 @@ const editTaskDurationField = document.querySelector("#editTaskDurationField");
 const editTaskTimerModeInput = document.querySelector("#editTaskTimerMode");
 const editTaskTimerModeField = document.querySelector("#editTaskTimerModeField");
 const editTaskTypeInput = document.querySelector("#editTaskType");
+const editCustomTaskTypeInput = document.querySelector("#editCustomTaskType");
 const editTaskPriorityInput = document.querySelector("#editTaskPriority");
 const editTaskNotesInput = document.querySelector("#editTaskNotes");
 const editTaskMeetingLinkInput = document.querySelector("#editTaskMeetingLink");
@@ -350,7 +354,9 @@ const editRepeatModeInput = document.querySelector("#editRepeatMode");
 const editRepeatIntervalField = document.querySelector("#editRepeatIntervalField");
 const editRepeatIntervalDaysInput = document.querySelector("#editRepeatIntervalDays");
 const editRepeatEndField = document.querySelector("#editRepeatEndField");
+const editRepeatStartDateInput = document.querySelector("#editRepeatStartDate");
 const editRepeatEndDateInput = document.querySelector("#editRepeatEndDate");
+const editRepeatYearlyInput = document.querySelector("#editRepeatYearly");
 const editWeekdayPicker = document.querySelector("#editWeekdayPicker");
 const editSpecificDatePicker = document.querySelector("#editSpecificDatePicker");
 const editSpecificRepeatDateInput = document.querySelector("#editSpecificRepeatDate");
@@ -694,17 +700,6 @@ featureToggleInputs.forEach((input) => {
   });
 });
 
-weeklyGoalInputs.forEach((input) => {
-  input.addEventListener("change", () => {
-    weeklyGoals = {
-      ...weeklyGoals,
-      [input.dataset.goal]: normalizeGoalValue(input.value),
-    };
-    saveWeeklyGoals();
-    render();
-  });
-});
-
 scheduleViewButtons.forEach((button) => {
   button.addEventListener("click", () => {
     scheduleView = button.dataset.view;
@@ -713,6 +708,10 @@ scheduleViewButtons.forEach((button) => {
 });
 
 scheduleGridRange.addEventListener("change", render);
+scheduleGridRangeToggle?.addEventListener("click", () => {
+  scheduleGridRange.value = scheduleGridRange.value === "week" ? "day" : "week";
+  render();
+});
 scheduleFilterButton?.addEventListener("click", openScheduleFilterOverlay);
 closeScheduleFilterButton?.addEventListener("click", closeScheduleFilterOverlay);
 doneScheduleFiltersButton?.addEventListener("click", closeScheduleFilterOverlay);
@@ -740,6 +739,11 @@ homeAddTaskButton?.addEventListener("click", openScheduleTaskFormFromHome);
 globalAddButton?.addEventListener("click", openScheduleTaskFormFromHome);
 homeGridRangeInput?.addEventListener("change", () => {
   homeGridRange = homeGridRangeInput.value === "week" ? "week" : "day";
+  render();
+});
+homeGridRangeToggle?.addEventListener("click", () => {
+  homeGridRange = homeGridRange === "week" ? "day" : "week";
+  if (homeGridRangeInput) homeGridRangeInput.value = homeGridRange;
   render();
 });
 homeGridDatePicker?.addEventListener("change", () => setHomeGridAnchorDate(homeGridDatePicker.value));
@@ -804,10 +808,12 @@ taskTimerModeInput.addEventListener("change", toggleItemKindFields);
 });
 taskRepeatModeInput.addEventListener("change", () => {
   toggleRepeatControls();
-  if (taskRepeatsInput.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
+  if (taskRepeatsInput.checked && !taskRepeatYearlyInput?.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
     setRepeatDayForDate(taskDateInput.value);
   }
 });
+taskRepeatStartDateInput?.addEventListener("change", toggleRepeatControls);
+taskRepeatYearlyInput?.addEventListener("change", toggleRepeatControls);
 specificRepeatDateInput?.addEventListener("change", () => addTaskSpecificRepeatDate(specificRepeatDateInput.value));
 addSpecificDateButton?.addEventListener("click", () => addTaskSpecificRepeatDate(specificRepeatDateInput?.value));
 specificDateChips?.addEventListener("click", (event) => {
@@ -863,23 +869,26 @@ function openScheduleTaskFormFromHome() {
 
 editItemKindInput.addEventListener("change", toggleEditItemKindFields);
 editTaskTimerModeInput.addEventListener("change", toggleEditItemKindFields);
-editTaskTypeInput.addEventListener("input", updateEditMeetingLinkControls);
+editTaskTypeInput.addEventListener("change", handleEditTaskTypeChange);
+editCustomTaskTypeInput.addEventListener("input", updateEditMeetingLinkControls);
 [editTaskDurationHoursInput, editTaskDurationMinutesInput].forEach((input) => {
   input?.addEventListener("input", () => syncDurationDialValue(editTaskDurationInput, editTaskDurationHoursInput, editTaskDurationMinutesInput));
   input?.addEventListener("change", () => syncDurationDialValue(editTaskDurationInput, editTaskDurationHoursInput, editTaskDurationMinutesInput, true));
 });
 editTaskRepeatsInput.addEventListener("change", () => {
   toggleEditRepeatControls();
-  if (editTaskRepeatsInput.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
+  if (editTaskRepeatsInput.checked && !editRepeatYearlyInput?.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
     setEditRepeatDayForDate(editTaskDateInput.value);
   }
 });
 editRepeatModeInput.addEventListener("change", () => {
   toggleEditRepeatControls();
-  if (editTaskRepeatsInput.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
+  if (editTaskRepeatsInput.checked && !editRepeatYearlyInput?.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
     setEditRepeatDayForDate(editTaskDateInput.value);
   }
 });
+editRepeatStartDateInput?.addEventListener("change", toggleEditRepeatControls);
+editRepeatYearlyInput?.addEventListener("change", toggleEditRepeatControls);
 editSpecificRepeatDateInput?.addEventListener("change", () => addEditSpecificRepeatDate(editSpecificRepeatDateInput.value));
 editAddSpecificDateButton?.addEventListener("click", () => addEditSpecificRepeatDate(editSpecificRepeatDateInput?.value));
 editSpecificDateChips?.addEventListener("click", (event) => {
@@ -901,7 +910,7 @@ editSpecificDatePicker?.addEventListener("click", (event) => {
   toggleEditSpecificRepeatDate(dateButton.dataset.editSpecificDate);
 });
 editTaskDateInput.addEventListener("change", () => {
-  if (editTaskRepeatsInput.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
+  if (editTaskRepeatsInput.checked && !editRepeatYearlyInput?.checked && getEditRepeatMode() === "weekly" && getEditRepeatDays().length === 0) {
     setEditRepeatDayForDate(editTaskDateInput.value);
   }
   if (editSpecificRepeatDates.length === 0 && isISODateString(editTaskDateInput.value)) {
@@ -980,13 +989,13 @@ assistantPromptButtons.forEach((button) => {
 
 taskRepeatsInput.addEventListener("change", () => {
   toggleRepeatControls();
-  if (taskRepeatsInput.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
+  if (taskRepeatsInput.checked && !taskRepeatYearlyInput?.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
     setRepeatDayForDate(taskDateInput.value);
   }
 });
 
 taskDateInput.addEventListener("change", () => {
-  if (taskRepeatsInput.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
+  if (taskRepeatsInput.checked && !taskRepeatYearlyInput?.checked && getTaskRepeatMode() === "weekly" && getSelectedRepeatDays().length === 0) {
     setRepeatDayForDate(taskDateInput.value);
   }
   if (taskSpecificRepeatDates.length === 0 && isISODateString(taskDateInput.value)) {
@@ -1008,15 +1017,17 @@ taskForm.addEventListener("submit", (event) => {
   const isAllDay = timerMode === "all-day";
   const inviteRecipients = parseInviteRecipients(formData.get("inviteEmails"));
   const inviteEmails = parseInviteEmails(inviteRecipients);
-  const repeatMode = repeats ? getRepeatModeForItemKind(itemKind, formData.get("repeatMode")) : "weekly";
-  const selectedRepeatDays = repeats ? getSelectedRepeatDays() : [];
-  const selectedSpecificDates = repeats && repeatMode === "specific"
+  const repeatYearly = repeats && formData.get("repeatYearly") === "on";
+  const repeatMode = repeats && !repeatYearly ? getRepeatModeForItemKind(itemKind, formData.get("repeatMode")) : "weekly";
+  const selectedRepeatDays = repeats && !repeatYearly ? getSelectedRepeatDays() : [];
+  const selectedSpecificDates = repeats && !repeatYearly && repeatMode === "specific"
     ? normalizeSpecificRepeatDates(taskSpecificRepeatDates, startDate)
     : [];
-  const repeatIntervalDays = repeats && repeatMode === "interval"
+  const repeatIntervalDays = repeats && !repeatYearly && repeatMode === "interval"
     ? normalizeRepeatIntervalDays(formData.get("repeatIntervalDays"))
     : 1;
-  const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(formData.get("repeatEndDate"), startDate) : "";
+  const repeatStartDate = repeats ? normalizeOptionalRepeatStartDate(formData.get("repeatStartDate"), startDate) : "";
+  const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(formData.get("repeatEndDate"), repeatStartDate || startDate) : "";
   const task = {
     id: crypto.randomUUID(),
     itemKind,
@@ -1032,7 +1043,9 @@ taskForm.addEventListener("submit", (event) => {
     meetingLink: isMeetingType(taskType) ? normalizeMeetingLink(formData.get("meetingLink")) : "",
     repeats,
     repeatMode,
+    repeatYearly,
     repeatIntervalDays,
+    repeatStartDate,
     repeatEndDate,
     repeatDays: repeats ? selectedRepeatDays : [],
     repeatSpecificDates: repeats ? selectedSpecificDates : [],
@@ -1049,10 +1062,10 @@ taskForm.addEventListener("submit", (event) => {
     return;
   }
 
-  if (task.repeats && task.repeatMode === "weekly" && task.repeatDays.length === 0) {
+  if (task.repeats && !task.repeatYearly && task.repeatMode === "weekly" && task.repeatDays.length === 0) {
     task.repeatDays = [weekdayForISODate(task.date)];
   }
-  if (task.repeats && task.repeatMode === "specific" && task.repeatSpecificDates.length === 0) {
+  if (task.repeats && !task.repeatYearly && task.repeatMode === "specific" && task.repeatSpecificDates.length === 0) {
     task.repeatSpecificDates = [task.date];
   }
 
@@ -1078,6 +1091,9 @@ function handleTaskAction(event) {
 
   const card = button.closest("[data-task-id][data-occurrence-date]");
   if (!card) return;
+
+  event.preventDefault();
+  event.stopImmediatePropagation?.();
 
   const taskId = card.dataset.taskId;
   const occurrenceDate = card.dataset.occurrenceDate;
@@ -1256,6 +1272,14 @@ weeklyReportOverlay?.addEventListener("click", (event) => {
   }
 });
 
+weeklyReportOverlay?.addEventListener("submit", (event) => {
+  const form = event.target.closest("[data-weekly-goal-form]");
+  if (!form) return;
+
+  event.preventDefault();
+  handleWeeklyGoalFormSubmit(form);
+});
+
 appToast?.addEventListener("click", (event) => {
   if (event.target.closest("[data-toast-action='close']")) {
     hideAppToast();
@@ -1397,7 +1421,7 @@ function buildScheduleOccurrences() {
       }
 
       const occurrences = [];
-      const taskStart = parseISODate(task.date);
+      const taskStart = getEffectiveRepeatStartDate(task);
       const firstDay = taskStart > scheduleStart ? taskStart : scheduleStart;
 
       for (let day = new Date(firstDay); day <= scheduleEnd; day = addDays(day, 1)) {
@@ -1448,7 +1472,7 @@ function buildMissedOccurrences() {
       return;
     }
 
-    const taskStart = parseISODate(task.date);
+    const taskStart = getEffectiveRepeatStartDate(task);
     const firstDay = taskStart > missedStart ? taskStart : missedStart;
 
     for (let day = new Date(firstDay); day <= missedEnd; day = addDays(day, 1)) {
@@ -1466,14 +1490,18 @@ function buildMissedOccurrences() {
 }
 
 function doesTaskRepeatOnDate(task, day) {
-  const taskStart = parseISODate(task.date);
+  const taskStart = getEffectiveRepeatStartDate(task);
   if (day < taskStart) return false;
-  const repeatEndDate = normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date);
+  const repeatEndDate = normalizeOptionalRepeatEndDate(task.repeatEndDate, toDateInputValue(taskStart));
   if (repeatEndDate && day > parseISODate(repeatEndDate)) return false;
   const repeatMode = getTaskRepeatModeValue(task);
 
+  if (isTaskRepeatYearly(task)) {
+    return day.getMonth() === taskStart.getMonth() && day.getDate() === taskStart.getDate();
+  }
+
   if (repeatMode === "specific") {
-    return normalizeSpecificRepeatDates(task.repeatSpecificDates, task.date).includes(toDateInputValue(day));
+    return normalizeSpecificRepeatDates(task.repeatSpecificDates, toDateInputValue(taskStart)).includes(toDateInputValue(day));
   }
 
   const repeatDays = normalizeRepeatDays(task.repeatDays);
@@ -1500,6 +1528,16 @@ function getTaskRepeatModeValue(task) {
   return "weekly";
 }
 
+function isTaskRepeatYearly(task) {
+  return Boolean(task?.repeatYearly || task?.repeatMode === "yearly");
+}
+
+function getEffectiveRepeatStartDate(task) {
+  const taskDate = isISODateString(task?.date) ? task.date : todayISO;
+  const repeatStartDate = normalizeOptionalRepeatStartDate(task?.repeatStartDate, taskDate);
+  return parseISODate(repeatStartDate || taskDate);
+}
+
 function getDaysBetween(startDate, endDate) {
   const start = startOfToday(startDate).getTime();
   const end = startOfToday(endDate).getTime();
@@ -1511,12 +1549,12 @@ function buildCompletedHistory() {
     .flatMap((task) => {
       if (isAllDayTask(task)) return [];
 
-      if (!task.repeats) {
-        return task.done ? [createOccurrence(task, task.date)] : [];
+      const completedDates = new Set(Array.isArray(task.completedDates) ? task.completedDates : []);
+      if (!task.repeats && task.done && isISODateString(task.date)) {
+        completedDates.add(task.date);
       }
 
-      const completedDates = Array.isArray(task.completedDates) ? task.completedDates : [];
-      return completedDates.map((date) => createOccurrence(task, date));
+      return [...completedDates].map((date) => createCompletedOccurrence(task, date));
     })
     .sort((a, b) => `${b.occurrenceDate}T${b.time}`.localeCompare(`${a.occurrenceDate}T${a.time}`));
 }
@@ -1539,6 +1577,87 @@ function createOccurrence(task, date) {
     skipped: task.repeats ? skippedDates.includes(date) : Boolean(task.skipped),
     earnedPoints: done && Number.isFinite(Number(earnedPoints)) ? Number(earnedPoints) : null,
     actualMinutes: done && Number.isFinite(Number(actualMinutes)) ? Number(actualMinutes) : null,
+  };
+}
+
+function createCompletedOccurrence(task, date) {
+  const occurrence = createOccurrence(task, date);
+  const snapshot = getCompletedOccurrenceSnapshot(task, date);
+  const earnedPointsByDate = task.earnedPointsByDate ?? {};
+  const actualMinutesByDate = task.actualMinutesByDate ?? {};
+  const earnedPoints = snapshot?.earnedPoints ?? (task.repeats ? earnedPointsByDate[date] : task.earnedPoints);
+  const actualMinutes = snapshot?.actualMinutes ?? (task.repeats ? actualMinutesByDate[date] : task.actualMinutes);
+
+  return {
+    ...occurrence,
+    ...(snapshot ?? {}),
+    id: task.id,
+    occurrenceDate: date,
+    repeats: Boolean(task.repeats),
+    done: true,
+    skipped: false,
+    earnedPoints: Number.isFinite(Number(earnedPoints)) ? Math.round(Number(earnedPoints)) : occurrence.earnedPoints,
+    actualMinutes: Number.isFinite(Number(actualMinutes)) ? Math.round(Number(actualMinutes)) : occurrence.actualMinutes,
+  };
+}
+
+function getCompletedOccurrenceSnapshot(task, date) {
+  const snapshots = task.completedSnapshotsByDate ?? {};
+  return normalizeCompletedOccurrenceSnapshot(snapshots[date], date) ?? normalizeCompletedOccurrenceSnapshot(task.completedSnapshot, date);
+}
+
+function buildCompletedSnapshotsByDate(task, savedSnapshots = task.completedSnapshotsByDate) {
+  const completedSnapshotsByDate = normalizeCompletedSnapshotsByDate(savedSnapshots);
+  const completedDates = Array.isArray(task.completedDates) ? task.completedDates.filter(isISODateString) : [];
+  const earnedPointsByDate = task.earnedPointsByDate ?? {};
+  const actualMinutesByDate = task.actualMinutesByDate ?? {};
+
+  completedDates.forEach((date) => {
+    if (!completedSnapshotsByDate[date]) {
+      completedSnapshotsByDate[date] = createCompletedOccurrenceSnapshot(
+        task,
+        date,
+        earnedPointsByDate[date],
+        actualMinutesByDate[date],
+      );
+    }
+  });
+
+  return completedSnapshotsByDate;
+}
+
+function createCompletedOccurrenceSnapshot(task, occurrenceDate, earnedPoints = null, actualMinutes = null) {
+  const itemKind = getItemKind(task);
+  const timerMode = getTaskTimerMode(task);
+  const isAllDay = timerMode === "all-day";
+  const safeActualMinutes = Number.isFinite(Number(actualMinutes))
+    ? Math.max(Math.round(Number(actualMinutes)), 0)
+    : itemKind === "reminder" || isAllDay
+      ? 0
+      : timerMode === "stopwatch"
+        ? 0
+        : normalizeTaskDuration(task.duration);
+  const safeEarnedPoints = Number.isFinite(Number(earnedPoints))
+    ? Math.max(Math.round(Number(earnedPoints)), 0)
+    : itemKind === "reminder" || isAllDay
+      ? 0
+      : Math.round((safeActualMinutes / 30) * 10);
+
+  return {
+    itemKind,
+    title: String(task.title ?? "").trim().replace(/\s+/g, " ").slice(0, 80) || "Task",
+    date: isISODateString(task.date) ? task.date : occurrenceDate,
+    time: isAllDay ? "00:00" : isTimeInputValue(task.time) ? task.time : "09:00",
+    endTime: itemKind === "reminder" ? normalizeOptionalEndTime(task.endTime) : "",
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(task.duration),
+    timerMode,
+    type: normalizeTaskTypeName(task.type) || "Personal",
+    priority: normalizePriority(task.priority),
+    notes: String(task.notes ?? "").trim().slice(0, 700),
+    meetingLink: isMeetingType(task.type) ? normalizeMeetingLink(task.meetingLink) : "",
+    earnedPoints: safeEarnedPoints,
+    actualMinutes: safeActualMinutes,
+    completedAt: new Date().toISOString(),
   };
 }
 
@@ -2633,8 +2752,10 @@ function createXpGoalHomeWidget(completedHistory) {
   const points = completedHistory
     .filter((task) => weekDates.has(task.occurrenceDate))
     .reduce((total, task) => total + calculatePoints(task), 0);
-  const goal = weeklyGoals.points ?? 0;
-  const goalText = goal > 0 ? `Goal: improve weekly xp by ${goal}%` : "No weekly xp goal set";
+  const goal = getWeeklyGoalForWeek(getCurrentWeekStartISO());
+  const goalText = goal
+    ? `This week's target: ${formatPoints(goal.targetXp)} xp`
+    : "Set this week's xp goal from the weekly report";
 
   return createHomeWidgetShell(
     "xpGoal",
@@ -2754,30 +2875,44 @@ function setDurationControlState(input, field, { hidden, disabled, hoursInput, m
 function toggleRepeatControls() {
   const isReminder = taskItemKindInput.value === "reminder";
   const repeats = taskRepeatsInput.checked;
+  const repeatYearly = repeats && Boolean(taskRepeatYearlyInput?.checked);
   const repeatMode = getTaskRepeatMode();
 
   repeatToggleText.textContent = isReminder ? "Repeat this reminder" : "Repeat this task";
-  repeatModeField.classList.toggle("hidden", !repeats);
-  weekdayPicker.classList.toggle("hidden", !repeats || repeatMode !== "weekly");
-  repeatIntervalField.classList.toggle("hidden", !repeats || repeatMode !== "interval");
-  specificDatePicker?.classList.toggle("hidden", !repeats || repeatMode !== "specific");
+  if (repeats && taskRepeatStartDateInput && !taskRepeatStartDateInput.value) {
+    taskRepeatStartDateInput.value = taskDateInput.value || todayISO;
+  }
+  if (taskRepeatEndDateInput && taskRepeatStartDateInput) {
+    taskRepeatEndDateInput.min = taskRepeatStartDateInput.value || taskDateInput.value || "";
+  }
+  repeatModeField.classList.toggle("hidden", !repeats || repeatYearly);
+  weekdayPicker.classList.toggle("hidden", !repeats || repeatYearly || repeatMode !== "weekly");
+  repeatIntervalField.classList.toggle("hidden", !repeats || repeatYearly || repeatMode !== "interval");
+  specificDatePicker?.classList.toggle("hidden", !repeats || repeatYearly || repeatMode !== "specific");
   repeatEndField?.classList.toggle("hidden", !repeats);
-  taskRepeatIntervalDaysInput.toggleAttribute("required", repeats && repeatMode === "interval");
+  taskRepeatIntervalDaysInput.toggleAttribute("required", repeats && !repeatYearly && repeatMode === "interval");
   renderSpecificRepeatDates();
 }
 
 function toggleEditRepeatControls() {
   const isReminder = editItemKindInput.value === "reminder";
   const repeats = editTaskRepeatsInput.checked;
+  const repeatYearly = repeats && Boolean(editRepeatYearlyInput?.checked);
   const repeatMode = getEditRepeatMode();
 
   editRepeatToggleText.textContent = isReminder ? "Repeat this reminder" : "Repeat this task";
-  editRepeatModeField.classList.toggle("hidden", !repeats);
-  editWeekdayPicker.classList.toggle("hidden", !repeats || repeatMode !== "weekly");
-  editRepeatIntervalField.classList.toggle("hidden", !repeats || repeatMode !== "interval");
-  editSpecificDatePicker?.classList.toggle("hidden", !repeats || repeatMode !== "specific");
+  if (repeats && editRepeatStartDateInput && !editRepeatStartDateInput.value) {
+    editRepeatStartDateInput.value = editTaskDateInput.value || todayISO;
+  }
+  if (editRepeatEndDateInput && editRepeatStartDateInput) {
+    editRepeatEndDateInput.min = editRepeatStartDateInput.value || editTaskDateInput.value || "";
+  }
+  editRepeatModeField.classList.toggle("hidden", !repeats || repeatYearly);
+  editWeekdayPicker.classList.toggle("hidden", !repeats || repeatYearly || repeatMode !== "weekly");
+  editRepeatIntervalField.classList.toggle("hidden", !repeats || repeatYearly || repeatMode !== "interval");
+  editSpecificDatePicker?.classList.toggle("hidden", !repeats || repeatYearly || repeatMode !== "specific");
   editRepeatEndField?.classList.toggle("hidden", !repeats);
-  editRepeatIntervalDaysInput.toggleAttribute("required", repeats && repeatMode === "interval");
+  editRepeatIntervalDaysInput.toggleAttribute("required", repeats && !repeatYearly && repeatMode === "interval");
   renderEditSpecificRepeatDates();
 }
 
@@ -2792,6 +2927,10 @@ function getEditRepeatMode() {
 function getRepeatModeForItemKind(itemKind, repeatMode, fallback = "interval") {
   if (repeatMode === "weekly" || repeatMode === "interval" || repeatMode === "specific") return repeatMode;
   return fallback === "weekly" ? "weekly" : "interval";
+}
+
+function normalizeRepeatYearly(value) {
+  return Boolean(value?.repeatYearly || value?.repeatMode === "yearly");
 }
 
 function normalizeRepeatIntervalDays(value) {
@@ -2929,8 +3068,10 @@ function deleteRepeatingOccurrence(task, taskId, occurrenceDate) {
   const skippedTask = skipTaskOccurrence(task, taskId, occurrenceDate);
   const earnedPointsByDate = { ...(skippedTask.earnedPointsByDate ?? {}) };
   const actualMinutesByDate = { ...(skippedTask.actualMinutesByDate ?? {}) };
+  const completedSnapshotsByDate = { ...(skippedTask.completedSnapshotsByDate ?? {}) };
   delete earnedPointsByDate[occurrenceDate];
   delete actualMinutesByDate[occurrenceDate];
+  delete completedSnapshotsByDate[occurrenceDate];
 
   return {
     ...skippedTask,
@@ -2938,6 +3079,7 @@ function deleteRepeatingOccurrence(task, taskId, occurrenceDate) {
       .filter((date) => date !== occurrenceDate),
     earnedPointsByDate,
     actualMinutesByDate,
+    completedSnapshotsByDate,
   };
 }
 
@@ -3054,7 +3196,6 @@ function startTaskSwipe(event) {
   if (scheduleView !== "list") return;
   if (event.button !== undefined && event.button !== 0) return;
   if (event.isPrimary === false) return;
-  if (!["touch", "pen"].includes(event.pointerType || "mouse")) return;
   if (event.target.closest("button, input, select, textarea, a")) return;
 
   const taskCard = event.target.closest(".task-card[data-task-id][data-occurrence-date]");
@@ -3072,6 +3213,12 @@ function startTaskSwipe(event) {
     maxOffset: 0,
     active: false,
   };
+
+  try {
+    taskCard.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Pointer capture is optional; the swipe still works without it.
+  }
 }
 
 function updateTaskSwipe(event) {
@@ -3118,9 +3265,15 @@ function finishTaskSwipe(event) {
 
   const state = taskSwipeState;
   const deltaX = event.clientX - state.startX;
+  const deltaY = event.clientY - state.startY;
+  const deleteDistance = getTaskSwipeDeleteDistance(state);
+  const hasPassedDeleteDistance = Math.abs(state.maxOffset) >= deleteDistance;
+  const hasHorizontalIntent = Math.abs(deltaX) > Math.abs(deltaY) * 0.85
+    || Math.abs(state.maxOffset) > Math.abs(deltaY) * TASK_SWIPE_HORIZONTAL_LOCK_RATIO;
   const shouldDelete = state.active
-    && deltaX <= -getTaskSwipeDeleteDistance(state)
-    && Math.abs(deltaX) > Math.abs(event.clientY - state.startY) * TASK_SWIPE_HORIZONTAL_LOCK_RATIO;
+    && deltaX < -TASK_SWIPE_ACTIVATE_DISTANCE
+    && hasPassedDeleteDistance
+    && hasHorizontalIntent;
 
   if (state.active) {
     event.preventDefault();
@@ -3141,7 +3294,9 @@ function finishTaskSwipe(event) {
 }
 
 function getTaskSwipeDeleteDistance(state) {
-  return state?.pointerType === "touch" ? 72 : TASK_SWIPE_DELETE_DISTANCE;
+  if (state?.pointerType === "touch") return 54;
+  if (state?.pointerType === "pen") return 64;
+  return TASK_SWIPE_DELETE_DISTANCE;
 }
 
 function cancelInactiveTaskSwipe() {
@@ -3891,18 +4046,21 @@ function openEditTask(taskId, occurrenceDate) {
   setDurationDialValue(editTaskDurationInput, editTaskDurationHoursInput, editTaskDurationMinutesInput, getTaskDurationForForm(occurrence));
   if (isStopwatchTask(occurrence)) editTaskDurationInput.value = "";
   editTaskTimerModeInput.value = getTaskTimerMode(occurrence);
-  editTaskTypeInput.value = occurrence.type;
+  setTaskTypeSelectValue(editTaskTypeInput, editCustomTaskTypeInput, occurrence.type);
   editTaskPriorityInput.value = normalizePriority(occurrence.priority);
   editTaskNotesInput.value = occurrence.notes ?? "";
   editTaskMeetingLinkInput.value = normalizeMeetingLink(occurrence.meetingLink);
   editTaskInviteEmailsInput.value = getTaskInviteFieldValue(task);
   editTaskRepeatsInput.checked = Boolean(task.repeats);
   editRepeatModeInput.value = getTaskRepeatModeValue(task);
+  editRepeatYearlyInput.checked = Boolean(task.repeats && isTaskRepeatYearly(task));
   editRepeatIntervalDaysInput.value = String(normalizeRepeatIntervalDays(task.repeatIntervalDays));
-  editRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date);
+  editRepeatStartDateInput.value = normalizeOptionalRepeatStartDate(task.repeatStartDate, task.date);
+  editRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(task.repeatEndDate, editRepeatStartDateInput.value || task.date);
   setEditRepeatDays(task.repeats ? task.repeatDays : []);
   setEditSpecificRepeatDates(task.repeats ? task.repeatSpecificDates : []);
   toggleEditItemKindFields();
+  toggleEditCustomTypeInput({ focus: false });
   updateEditMeetingLinkControls();
 
   editTaskOverlay.classList.remove("hidden");
@@ -3939,7 +4097,7 @@ function saveEditedTask(event) {
   const date = editTaskDateInput.value;
   const itemKind = normalizeItemKind(editItemKindInput.value);
   const endTime = itemKind === "reminder" ? normalizeOptionalEndTime(editTaskEndTimeInput.value) : "";
-  const type = normalizeTaskTypeName(editTaskTypeInput.value);
+  const type = getCurrentEditTaskTypeValue();
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(editTaskTimerModeInput.value);
   const isAllDay = timerMode === "all-day";
   const time = isAllDay ? "00:00" : editTaskTimeInput.value;
@@ -3947,22 +4105,29 @@ function saveEditedTask(event) {
   const inviteRecipients = parseInviteRecipients(editTaskInviteEmailsInput.value);
   const inviteEmails = parseInviteEmails(inviteRecipients);
   const repeats = editTaskRepeatsInput.checked;
-  const repeatMode = repeats ? getRepeatModeForItemKind(itemKind, editRepeatModeInput.value) : "weekly";
-  const repeatDays = repeats ? getEditRepeatDays() : [];
-  const repeatSpecificDates = repeats && repeatMode === "specific"
+  const repeatYearly = repeats && editRepeatYearlyInput.checked;
+  const repeatMode = repeats && !repeatYearly ? getRepeatModeForItemKind(itemKind, editRepeatModeInput.value) : "weekly";
+  const repeatDays = repeats && !repeatYearly ? getEditRepeatDays() : [];
+  const repeatSpecificDates = repeats && !repeatYearly && repeatMode === "specific"
     ? getEditSpecificRepeatDates()
     : [];
-  const repeatIntervalDays = repeats && repeatMode === "interval"
+  const repeatIntervalDays = repeats && !repeatYearly && repeatMode === "interval"
     ? normalizeRepeatIntervalDays(editRepeatIntervalDaysInput.value)
     : 1;
-  const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(editRepeatEndDateInput.value, date) : "";
-  const nextRepeatDays = repeats && repeatMode === "weekly" && repeatDays.length === 0 ? [weekdayForISODate(date)] : repeatDays;
-  const nextSpecificDates = repeats && repeatMode === "specific" && repeatSpecificDates.length === 0 ? [date] : repeatSpecificDates;
+  const repeatStartDate = repeats ? normalizeOptionalRepeatStartDate(editRepeatStartDateInput.value, date) : "";
+  const repeatEndDate = repeats ? normalizeOptionalRepeatEndDate(editRepeatEndDateInput.value, repeatStartDate || date) : "";
+  const nextRepeatDays = repeats && !repeatYearly && repeatMode === "weekly" && repeatDays.length === 0 ? [weekdayForISODate(date)] : repeatDays;
+  const nextSpecificDates = repeats && !repeatYearly && repeatMode === "specific" && repeatSpecificDates.length === 0 ? [date] : repeatSpecificDates;
 
-  if (!title || !date || (!isAllDay && !time) || !type) return;
+  if (!title || !date || (!isAllDay && !time) || !type) {
+    if (!type) editCustomTaskTypeInput.focus();
+    return;
+  }
 
   tasks = tasks.map((task) => {
     if (task.id !== taskId) return task;
+
+    const completedSnapshotsByDate = buildCompletedSnapshotsByDate(task);
 
     return {
       ...task,
@@ -3982,16 +4147,20 @@ function saveEditedTask(event) {
       sentInviteEmails: normalizeInviteEmails(task.sentInviteEmails),
       repeats,
       repeatMode,
+      repeatYearly,
       repeatIntervalDays,
+      repeatStartDate,
       repeatEndDate,
       repeatDays: repeats ? nextRepeatDays : [],
       repeatSpecificDates: repeats ? nextSpecificDates : [],
       done: repeats ? false : task.repeats ? false : Boolean(task.done),
       skipped: repeats ? false : Boolean(task.skipped),
-      completedDates: repeats ? (Array.isArray(task.completedDates) ? task.completedDates : []) : [],
+      completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
       skippedDates: repeats ? (Array.isArray(task.skippedDates) ? task.skippedDates : []) : [],
-      earnedPointsByDate: repeats ? (task.earnedPointsByDate ?? {}) : {},
-      actualMinutesByDate: repeats ? (task.actualMinutesByDate ?? {}) : {},
+      earnedPointsByDate: task.earnedPointsByDate ?? {},
+      actualMinutesByDate: task.actualMinutesByDate ?? {},
+      completedSnapshotsByDate,
+      completedSnapshot: task.completedSnapshot,
     };
   });
 
@@ -4743,6 +4912,28 @@ function getMinimumTimelineVisualMinutes(pixelHeight, zoom = scheduleGridZoom) {
   return Math.ceil(Number(pixelHeight || 0) / pixelsPerMinute);
 }
 
+function createTimelineTaskTooltip(task) {
+  const details = [
+    `${formatDateHeading(task.occurrenceDate)} - ${formatTimeRange(task)}`,
+    `${isReminderItem(task) ? "Reminder" : "Task"} - ${task.type}`,
+  ];
+
+  if (featureSettings.priorities) {
+    details.push(`${normalizePriority(task.priority)} priority`);
+  }
+
+  details.push(task.repeats ? createRepeatLabel(task) : "One-time");
+
+  const notes = String(task.notes ?? "").trim();
+  return `
+    <span class="timeline-task-tooltip" aria-hidden="true">
+      <strong>${escapeHTML(task.title)}</strong>
+      ${details.map((detail) => `<small>${escapeHTML(detail)}</small>`).join("")}
+      ${notes ? `<em>${escapeHTML(notes.slice(0, 120))}${notes.length > 120 ? "..." : ""}</em>` : ""}
+    </span>
+  `;
+}
+
 function createTimelineTask(item, bounds, extraClass = "") {
   const { task, range, lane, laneCount } = item;
   const isReminder = isReminderItem(task);
@@ -4754,6 +4945,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
   const laneLeft = lane * laneWidth;
   const typeStyle = getTaskTypeStyle(task.type);
   const priorityLabel = featureSettings.priorities ? ` &middot; ${escapeHTML(normalizePriority(task.priority))}` : "";
+  const tooltip = createTimelineTaskTooltip(task);
 
   return `
     <article
@@ -4765,6 +4957,7 @@ function createTimelineTask(item, bounds, extraClass = "") {
       <span class="timeline-time">${formatTimeRange(task)}</span>
       <strong class="timeline-title">${escapeHTML(task.title)}</strong>
       <small class="timeline-meta">${escapeHTML(task.type)}${priorityLabel} &middot; ${escapeHTML(getTaskTimingLabel(task))}</small>
+      ${tooltip}
     </article>
   `;
 }
@@ -5103,6 +5296,10 @@ function getCurrentWeekStart() {
   return getWeekStart(today);
 }
 
+function getCurrentWeekStartISO() {
+  return toDateInputValue(getCurrentWeekStart());
+}
+
 function getWeekStart(date) {
   const day = date.getDay();
   const daysSinceMonday = (day + 6) % 7;
@@ -5137,15 +5334,63 @@ function getStringHue(value) {
   return [...value].reduce((hash, char) => hash + char.charCodeAt(0) * 17, 0) % 360;
 }
 
-function renderTaskTypeOptions(selectedType = taskTypeInput.value || BUILT_IN_TASK_TYPES[0]) {
-  const options = [...BUILT_IN_TASK_TYPES, ...customTaskTypes];
-  taskTypeInput.innerHTML = `
+function renderTaskTypeOptions(selectedType = getCurrentTaskTypeValue() || BUILT_IN_TASK_TYPES[0]) {
+  const editSelectedType = getCurrentEditTaskTypeValue();
+  const options = getTaskTypeOptions();
+  const markup = createTaskTypeOptionsMarkup(options);
+
+  taskTypeInput.innerHTML = markup;
+  setTaskTypeSelectValue(taskTypeInput, customTaskTypeInput, selectedType, options);
+  toggleCustomTypeInput({ focus: false });
+
+  if (editTaskTypeInput) {
+    editTaskTypeInput.innerHTML = markup;
+    setTaskTypeSelectValue(editTaskTypeInput, editCustomTaskTypeInput, editSelectedType || selectedType, options);
+    toggleEditCustomTypeInput({ focus: false });
+  }
+}
+
+function getTaskTypeOptions() {
+  return [...BUILT_IN_TASK_TYPES, ...customTaskTypes];
+}
+
+function createTaskTypeOptionsMarkup(options) {
+  return `
     ${options.map((type) => `<option value="${escapeHTML(type)}">${escapeHTML(type)}</option>`).join("")}
     <option value="custom">Custom type...</option>
   `;
+}
 
-  taskTypeInput.value = options.includes(selectedType) ? selectedType : BUILT_IN_TASK_TYPES[0];
-  toggleCustomTypeInput();
+function setTaskTypeSelectValue(select, customInput, selectedType, options = getTaskTypeOptions()) {
+  const normalizedType = normalizeTaskTypeName(selectedType);
+
+  if (options.includes(normalizedType)) {
+    select.value = normalizedType;
+    if (customInput) customInput.value = "";
+    return;
+  }
+
+  if (normalizedType) {
+    select.value = "custom";
+    if (customInput) customInput.value = normalizedType;
+    return;
+  }
+
+  select.value = BUILT_IN_TASK_TYPES[0];
+  if (customInput) customInput.value = "";
+}
+
+function getCurrentTaskTypeValue() {
+  return taskTypeInput.value === "custom"
+    ? normalizeTaskTypeName(customTaskTypeInput.value)
+    : normalizeTaskTypeName(taskTypeInput.value);
+}
+
+function getCurrentEditTaskTypeValue() {
+  if (!editTaskTypeInput) return "";
+  return editTaskTypeInput.value === "custom"
+    ? normalizeTaskTypeName(editCustomTaskTypeInput.value)
+    : normalizeTaskTypeName(editTaskTypeInput.value);
 }
 
 function renderScheduleFilterControls() {
@@ -5228,11 +5473,11 @@ function updateFilterSet(filterSet, value, isChecked) {
   return nextSet;
 }
 
-function toggleCustomTypeInput() {
+function toggleCustomTypeInput(options = {}) {
   const isCustom = taskTypeInput.value === "custom";
   customTaskTypeInput.classList.toggle("hidden", !isCustom);
   customTaskTypeInput.toggleAttribute("required", isCustom);
-  if (isCustom) customTaskTypeInput.focus();
+  if (isCustom && options.focus !== false) customTaskTypeInput.focus();
   updateMeetingLinkControls();
 }
 
@@ -5241,15 +5486,25 @@ function handleTaskTypeChange() {
   updateMeetingLinkControls();
 }
 
+function toggleEditCustomTypeInput(options = {}) {
+  const isCustom = editTaskTypeInput.value === "custom";
+  editCustomTaskTypeInput.classList.toggle("hidden", !isCustom);
+  editCustomTaskTypeInput.toggleAttribute("required", isCustom);
+  if (isCustom && options.focus !== false) editCustomTaskTypeInput.focus();
+  updateEditMeetingLinkControls();
+}
+
+function handleEditTaskTypeChange() {
+  toggleEditCustomTypeInput();
+  updateEditMeetingLinkControls();
+}
+
 function updateMeetingLinkControls() {
-  const selectedType = taskTypeInput.value === "custom"
-    ? normalizeTaskTypeName(customTaskTypeInput.value)
-    : taskTypeInput.value;
-  setMeetingFieldVisibility(taskMeetingField, taskMeetingLinkInput, isMeetingType(selectedType));
+  setMeetingFieldVisibility(taskMeetingField, taskMeetingLinkInput, isMeetingType(getCurrentTaskTypeValue()));
 }
 
 function updateEditMeetingLinkControls() {
-  setMeetingFieldVisibility(editTaskMeetingField, editTaskMeetingLinkInput, isMeetingType(editTaskTypeInput.value));
+  setMeetingFieldVisibility(editTaskMeetingField, editTaskMeetingLinkInput, isMeetingType(getCurrentEditTaskTypeValue()));
 }
 
 function setMeetingFieldVisibility(field, input, isVisible) {
@@ -5313,8 +5568,10 @@ function applySelectedTaskTemplate() {
   taskPriorityInput.value = normalizePriority(template.priority);
   taskRepeatsInput.checked = Boolean(template.repeats);
   taskRepeatModeInput.value = getTaskRepeatModeValue(template);
+  taskRepeatYearlyInput.checked = Boolean(template.repeats && isTaskRepeatYearly(template));
   taskRepeatIntervalDaysInput.value = String(normalizeRepeatIntervalDays(template.repeatIntervalDays));
-  taskRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(template.repeatEndDate, taskDateInput.value);
+  taskRepeatStartDateInput.value = normalizeOptionalRepeatStartDate(template.repeatStartDate, taskDateInput.value);
+  taskRepeatEndDateInput.value = normalizeOptionalRepeatEndDate(template.repeatEndDate, taskRepeatStartDateInput.value || taskDateInput.value);
   taskMeetingLinkInput.value = normalizeMeetingLink(template.meetingLink);
   setRepeatDays(template.repeats ? template.repeatDays : []);
   setSpecificRepeatDates(template.repeats ? template.repeatSpecificDates : []);
@@ -5345,7 +5602,9 @@ function saveCurrentTaskTemplate() {
     priority: formData.get("priority"),
     repeats: formData.get("repeats") === "on",
     repeatMode: getRepeatModeForItemKind(formData.get("itemKind"), formData.get("repeatMode")),
+    repeatYearly: formData.get("repeatYearly") === "on",
     repeatIntervalDays: formData.get("repeatIntervalDays"),
+    repeatStartDate: formData.get("repeatStartDate"),
     repeatEndDate: formData.get("repeatEndDate"),
     repeatDays: getSelectedRepeatDays(),
     repeatSpecificDates: getSelectedSpecificRepeatDates(),
@@ -5459,6 +5718,16 @@ function updateScheduleGridZoomControls() {
   gridZoomInButton.disabled = scheduleGridZoom >= 2.2;
   scheduleGrid.classList.toggle("compact-15", scheduleGridZoom <= 1.9);
   scheduleGrid.classList.toggle("compact-30", scheduleGridZoom <= 1.25);
+  updateGridRangeToggle(scheduleGridRangeToggle, scheduleGridRange.value);
+}
+
+function updateGridRangeToggle(button, range) {
+  if (!button) return;
+
+  const isWeek = range === "week";
+  button.textContent = isWeek ? "Week view" : "Day view";
+  button.setAttribute("aria-pressed", String(isWeek));
+  button.setAttribute("aria-label", isWeek ? "Switch grid to day view" : "Switch grid to week view");
 }
 
 function handleHomeGridZoom(event) {
@@ -5505,6 +5774,7 @@ function updateHomeGridZoom() {
 function updateHomeGridControls() {
   if (homeGridDatePicker) homeGridDatePicker.value = homeGridAnchorDate;
   if (homeGridRangeInput) homeGridRangeInput.value = homeGridRange;
+  updateGridRangeToggle(homeGridRangeToggle, homeGridRange);
   if (homeGridZoomLevel) homeGridZoomLevel.textContent = `${Math.round(homeGridZoom * 100)}%`;
   if (homeGridZoomOutButton) homeGridZoomOutButton.disabled = homeGridZoom <= 0.75;
   if (homeGridZoomInButton) homeGridZoomInButton.disabled = homeGridZoom >= 2.2;
@@ -5662,28 +5932,68 @@ function renderWeeklyReportOverlay(completedHistory) {
 }
 
 function shouldShowWeeklyReportOverlay(reportKey) {
-  return localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY)) !== reportKey;
+  return localStorage.getItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY)) !== reportKey
+    || !getWeeklyGoalForWeek(getCurrentWeekStartISO());
 }
 
 function createWeeklyReportModal(completedHistory) {
   const report = buildWeeklyReport(completedHistory);
   const currentPeriod = `${formatDateHeading(report.current.startISO)} - ${formatDateHeading(report.current.endISO)}`;
+  const canClose = Boolean(getWeeklyGoalForWeek(getCurrentWeekStartISO()));
+  const closeState = canClose ? "" : "disabled aria-disabled=\"true\" title=\"Set this week's xp goal first\"";
 
   return `
     <section class="weekly-report-modal" role="dialog" aria-modal="true" aria-labelledby="weeklyReportModalTitle">
-      <button class="close-button weekly-report-modal-close" data-weekly-report-action="close" type="button" aria-label="Close weekly report">x</button>
+      <button class="close-button weekly-report-modal-close" data-weekly-report-action="close" type="button" aria-label="Close weekly report" ${closeState}>x</button>
       <div class="weekly-report-modal-intro">
         <span class="report-kicker">New week report</span>
         <h2 id="weeklyReportModalTitle">Your Weekly Report</h2>
         <p>${currentPeriod}. See how your xp, hours, and completed tasks changed compared with the week before.</p>
       </div>
       ${createWeeklyReport(completedHistory, { isModal: true })}
-      <button class="primary-button weekly-report-modal-action" data-weekly-report-action="close" type="button">Keep going</button>
+      <button class="primary-button weekly-report-modal-action" data-weekly-report-action="close" type="button" ${closeState}>Keep going</button>
     </section>
   `;
 }
 
+function handleWeeklyGoalFormSubmit(form) {
+  const input = form.querySelector("[data-weekly-goal-input]");
+  const targetXp = normalizeWeeklyGoalXp(input?.value);
+  const weekStartISO = getCurrentWeekStartISO();
+
+  if (targetXp <= 0) {
+    setWeeklyGoalFormStatus(form, "Enter an xp target above 0 to lock this week's goal.");
+    input?.focus();
+    return;
+  }
+
+  if (getWeeklyGoalForWeek(weekStartISO)) {
+    setWeeklyGoalFormStatus(form, "This week's xp goal is already locked.", false);
+    return;
+  }
+
+  lockWeeklyGoalForWeek(weekStartISO, targetXp);
+  showAppToast("Goal locked", `${formatPoints(targetXp)} xp is locked for this week.`);
+  render();
+}
+
+function setWeeklyGoalFormStatus(form, message, isError = true) {
+  if (!form) return;
+
+  const status = form.querySelector("[data-weekly-goal-status]");
+  if (status) status.textContent = message;
+  form.classList.toggle("has-error", isError);
+}
+
 function dismissWeeklyReportOverlay() {
+  if (!getWeeklyGoalForWeek(getCurrentWeekStartISO())) {
+    const form = weeklyReportOverlay?.querySelector("[data-weekly-goal-form]");
+    setWeeklyGoalFormStatus(form, "Set this week's xp goal to close the weekly report.");
+    form?.querySelector("[data-weekly-goal-input]")?.focus();
+    showAppToast("Goal needed", "Lock this week's xp goal before closing your report.");
+    return;
+  }
+
   localStorage.setItem(getProfileStorageKey(WEEKLY_REPORT_SEEN_STORAGE_KEY), getCurrentWeeklyReportKey());
   queueCloudSave();
   if (weeklyReport) {
@@ -5735,12 +6045,13 @@ function createWeeklyReport(completedHistory, options = {}) {
         </div>
       </div>
       <div class="weekly-metrics">
-        ${createWeeklyMetric("xp", "points", report.current.points, report.previous.points, formatPoints)}
+        ${createWeeklyMetric("xp", report.current.startISO, report.current.points, report.previous.points, formatPoints)}
         ${createWeeklyMetric("Hours", null, report.current.hours, report.previous.hours, formatHours)}
         ${createWeeklyMetric("Tasks", null, report.current.tasks, report.previous.tasks, String)}
       </div>
       ${createWeeklyHighlights(report.current)}
       <p class="weekly-report-summary">${createWeeklyReportSummary(report)}</p>
+      ${createWeeklyGoalPanel(report, options)}
     </section>
   `;
 }
@@ -5860,14 +6171,14 @@ function formatShortWeekday(isoDate) {
   return parseISODate(isoDate).toLocaleDateString(undefined, { weekday: "short" });
 }
 
-function createWeeklyMetric(label, goalKey, current, previous, formatter) {
+function createWeeklyMetric(label, goalWeekStartISO, current, previous, formatter) {
   const change = calculatePercentChange(current, previous);
-  const goal = goalKey ? weeklyGoals[goalKey] : 0;
-  const bonusPoints = calculateMetricBonusPoints(change, goal);
+  const goal = goalWeekStartISO ? getWeeklyGoalForWeek(goalWeekStartISO) : null;
+  const bonusPoints = calculateMetricBonusPoints(current, goal);
   const direction = current > previous ? "up" : current < previous ? "down" : "flat";
   const directionLabel = direction === "up" ? "increase" : direction === "down" ? "decrease" : "no change";
-  const goalMarkup = goalKey
-    ? `<div class="goal-result ${bonusPoints > 0 ? "met" : ""}">${createGoalResultText(goal, change, bonusPoints)}</div>`
+  const goalMarkup = goalWeekStartISO
+    ? `<div class="goal-result ${bonusPoints > 0 ? "met" : ""}">${createGoalResultText(goal, current, bonusPoints)}</div>`
     : "";
 
   return `
@@ -5881,23 +6192,70 @@ function createWeeklyMetric(label, goalKey, current, previous, formatter) {
   `;
 }
 
-function createGoalResultText(goal, change, bonusPoints) {
-  if (goal === 0) return "No goal set";
-  if (bonusPoints > 0) return `Goal +${goal}% met &middot; +${formatPoints(bonusPoints)} bonus xp`;
+function createGoalResultText(goal, currentPoints, bonusPoints) {
+  if (!goal) return "No xp goal was set for this week";
+  if (bonusPoints > 0) return `Goal ${formatPoints(goal.targetXp)} xp met &middot; +${formatPoints(bonusPoints)} bonus xp`;
 
-  const remaining = Math.max(goal - change, 0);
-  return `Goal +${goal}% &middot; ${formatPoints(remaining)}% to go`;
+  const remaining = Math.max(goal.targetXp - currentPoints, 0);
+  return `Goal ${formatPoints(goal.targetXp)} xp &middot; ${formatPoints(remaining)} xp short`;
 }
 
 function calculateWeeklyBonusPoints(report) {
-  return calculateMetricBonusPoints(
-    calculatePercentChange(report.current.points, report.previous.points),
-    weeklyGoals.points,
-  );
+  return calculateMetricBonusPoints(report.current.points, getWeeklyGoalForWeek(report.current.startISO));
 }
 
-function calculateMetricBonusPoints(change, goal) {
-  return goal > 0 && change >= goal ? goal : 0;
+function calculateMetricBonusPoints(currentPoints, goal) {
+  if (!goal || currentPoints < goal.targetXp) return 0;
+  return calculateWeeklyGoalBonusAmount(goal.targetXp);
+}
+
+function calculateWeeklyGoalBonusAmount(targetXp) {
+  return Math.max(10, Math.round(targetXp * 0.1));
+}
+
+function createWeeklyGoalPanel(report, options = {}) {
+  const currentWeekStartISO = getCurrentWeekStartISO();
+  const currentWeekEndISO = toDateInputValue(addDays(getCurrentWeekStart(), 6));
+  const currentWeekGoal = getWeeklyGoalForWeek(currentWeekStartISO);
+  const currentWeekPeriod = `${formatDateHeading(currentWeekStartISO)} - ${formatDateHeading(currentWeekEndISO)}`;
+
+  if (currentWeekGoal) {
+    return `
+      <div class="weekly-report-next-goal locked">
+        <span>This week's locked goal</span>
+        <strong>${formatPoints(currentWeekGoal.targetXp)} xp</strong>
+        <small>${currentWeekPeriod}. This goal cannot be changed; your next one unlocks with the next weekly report.</small>
+      </div>
+    `;
+  }
+
+  if (!options.isModal) {
+    return `
+      <div class="weekly-report-next-goal pending">
+        <span>This week's xp goal</span>
+        <strong>Set from the weekly report</strong>
+        <small>Your goal appears here once it is locked for the current week.</small>
+      </div>
+    `;
+  }
+
+  const suggestedGoal = Math.max(100, Math.ceil((report.current.points + 50) / 10) * 10);
+
+  return `
+    <div class="weekly-report-next-goal pending">
+      <span>Next weekly report goal</span>
+      <strong>Lock this week's xp target</strong>
+      <form class="weekly-goal-lock-form" data-weekly-goal-form>
+        <label for="weeklyGoalTarget">Goal for ${currentWeekPeriod}</label>
+        <div class="weekly-goal-input-row">
+          <input id="weeklyGoalTarget" data-weekly-goal-input type="number" inputmode="numeric" min="1" max="999999" step="1" value="${suggestedGoal}" aria-label="This week's xp goal" />
+          <span>xp</span>
+          <button class="primary-button" type="submit">Lock goal</button>
+        </div>
+        <small class="weekly-goal-note" data-weekly-goal-status>Set a fixed xp goal to close this report. You can set a new one next week.</small>
+      </form>
+    </div>
+  `;
 }
 
 function createWeeklyReportSummary(report) {
@@ -6023,6 +6381,7 @@ function createRankLogo(league, options = {}) {
   const className = options.className ? ` ${options.className}` : "";
   const isSmall = options.small ? " small" : "";
   const assetSrc = `assets/ranks/simple-${league.id}.svg`;
+  const fallbackAssetSrc = `assets/ranks/${league.id}.png`;
 
   return `
     <span
@@ -6032,7 +6391,7 @@ function createRankLogo(league, options = {}) {
       aria-label="${escapeHTML(label)}"
     >
       <span class="rank-logo-shadow" aria-hidden="true"></span>
-      <img class="rank-logo-image" src="${escapeHTML(assetSrc)}" alt="" loading="lazy" decoding="async" draggable="false">
+      <img class="rank-logo-image" src="${escapeHTML(assetSrc)}" alt="" loading="eager" decoding="async" draggable="false" onerror="this.onerror=null;this.src='${escapeHTML(fallbackAssetSrc)}';">
     </span>
   `;
 }
@@ -6419,9 +6778,15 @@ function toggleTaskCompletion(task, taskId, occurrenceDate) {
   if (isAllDayTask(task)) return task;
 
   if (!task.repeats) {
-    if (!task.done) return { ...task, done: true };
+    if (!task.done) {
+      return {
+        ...task,
+        done: true,
+        completedSnapshot: createCompletedOccurrenceSnapshot(task, occurrenceDate),
+      };
+    }
 
-    const { earnedPoints, actualMinutes, ...remainingTask } = task;
+    const { earnedPoints, actualMinutes, completedSnapshot, ...remainingTask } = task;
     return { ...remainingTask, done: false };
   }
 
@@ -6429,10 +6794,14 @@ function toggleTaskCompletion(task, taskId, occurrenceDate) {
   const alreadyDone = completedDates.includes(occurrenceDate);
   const earnedPointsByDate = { ...(task.earnedPointsByDate ?? {}) };
   const actualMinutesByDate = { ...(task.actualMinutesByDate ?? {}) };
+  const completedSnapshotsByDate = { ...(task.completedSnapshotsByDate ?? {}) };
 
   if (alreadyDone) {
     delete earnedPointsByDate[occurrenceDate];
     delete actualMinutesByDate[occurrenceDate];
+    delete completedSnapshotsByDate[occurrenceDate];
+  } else {
+    completedSnapshotsByDate[occurrenceDate] = createCompletedOccurrenceSnapshot(task, occurrenceDate);
   }
 
   return {
@@ -6442,6 +6811,7 @@ function toggleTaskCompletion(task, taskId, occurrenceDate) {
       : [...completedDates, occurrenceDate],
     earnedPointsByDate,
     actualMinutesByDate,
+    completedSnapshotsByDate,
   };
 }
 
@@ -6457,6 +6827,7 @@ function markTaskComplete(task, taskId, occurrenceDate, earnedPoints = null, act
       done: true,
       earnedPoints: normalizedPoints,
       actualMinutes: normalizedMinutes,
+      completedSnapshot: createCompletedOccurrenceSnapshot(task, occurrenceDate, normalizedPoints, normalizedMinutes),
     };
   }
 
@@ -6469,6 +6840,10 @@ function markTaskComplete(task, taskId, occurrenceDate, earnedPoints = null, act
     ...(task.actualMinutesByDate ?? {}),
     [occurrenceDate]: normalizedMinutes,
   };
+  const completedSnapshotsByDate = {
+    ...(task.completedSnapshotsByDate ?? {}),
+    [occurrenceDate]: createCompletedOccurrenceSnapshot(task, occurrenceDate, normalizedPoints, normalizedMinutes),
+  };
 
   return {
     ...task,
@@ -6477,6 +6852,7 @@ function markTaskComplete(task, taskId, occurrenceDate, earnedPoints = null, act
       : [...completedDates, occurrenceDate],
     earnedPointsByDate,
     actualMinutesByDate,
+    completedSnapshotsByDate,
   };
 }
 
@@ -6514,8 +6890,10 @@ function detachRepeatingOccurrenceForMove(task, taskId, occurrenceDate) {
   const skippedTask = skipTaskOccurrence(task, taskId, occurrenceDate);
   const earnedPointsByDate = { ...(skippedTask.earnedPointsByDate ?? {}) };
   const actualMinutesByDate = { ...(skippedTask.actualMinutesByDate ?? {}) };
+  const completedSnapshotsByDate = { ...(skippedTask.completedSnapshotsByDate ?? {}) };
   delete earnedPointsByDate[occurrenceDate];
   delete actualMinutesByDate[occurrenceDate];
+  delete completedSnapshotsByDate[occurrenceDate];
 
   return {
     ...skippedTask,
@@ -6523,6 +6901,7 @@ function detachRepeatingOccurrenceForMove(task, taskId, occurrenceDate) {
       .filter((date) => date !== occurrenceDate),
     earnedPointsByDate,
     actualMinutesByDate,
+    completedSnapshotsByDate,
   };
 }
 
@@ -6569,7 +6948,9 @@ function createSingleTaskFromOccurrence(task, targetDate, targetTime = task.time
     meetingLink: isMeetingType(task.type) ? normalizeMeetingLink(task.meetingLink) : "",
     repeats: false,
     repeatMode: "weekly",
+    repeatYearly: false,
     repeatIntervalDays: 1,
+    repeatStartDate: "",
     repeatEndDate: "",
     repeatDays: [],
     repeatSpecificDates: [],
@@ -6579,6 +6960,7 @@ function createSingleTaskFromOccurrence(task, targetDate, targetTime = task.time
     skipped: false,
     earnedPoints: isDone ? task.earnedPoints : null,
     actualMinutes: isDone ? task.actualMinutes : null,
+    completedSnapshot: isDone ? createCompletedOccurrenceSnapshot(task, targetDate, task.earnedPoints, task.actualMinutes) : null,
     createdAt: new Date().toISOString(),
   };
 }
@@ -6844,7 +7226,9 @@ function resetForm() {
   taskPriorityInput.value = "Medium";
   taskTemplateSelect.value = "";
   taskRepeatModeInput.value = "weekly";
+  taskRepeatYearlyInput.checked = false;
   taskRepeatIntervalDaysInput.value = "2";
+  taskRepeatStartDateInput.value = "";
   taskRepeatEndDateInput.value = "";
   taskSpecificRepeatDates = [];
   taskSpecificCalendarMonth = startOfMonth(parseISODate(todayISO));
@@ -7009,34 +7393,49 @@ function setRepeatDays(days) {
 }
 
 function createRepeatLabel(taskOrRepeatDays) {
-  const endLabel = !Array.isArray(taskOrRepeatDays) && normalizeOptionalRepeatEndDate(taskOrRepeatDays?.repeatEndDate, taskOrRepeatDays?.date)
-    ? ` until ${formatDateHeading(taskOrRepeatDays.repeatEndDate)}`
+  const isTask = !Array.isArray(taskOrRepeatDays);
+  const repeatStartDate = isTask
+    ? normalizeOptionalRepeatStartDate(taskOrRepeatDays?.repeatStartDate, taskOrRepeatDays?.date)
     : "";
+  const startLabel = isTask && repeatStartDate && repeatStartDate !== taskOrRepeatDays?.date
+    ? ` from ${formatDateHeading(repeatStartDate)}`
+    : "";
+  const repeatEndDate = isTask
+    ? normalizeOptionalRepeatEndDate(taskOrRepeatDays?.repeatEndDate, repeatStartDate || taskOrRepeatDays?.date)
+    : "";
+  const endLabel = repeatEndDate ? ` until ${formatDateHeading(repeatEndDate)}` : "";
 
-  if (!Array.isArray(taskOrRepeatDays) && getTaskRepeatModeValue(taskOrRepeatDays) === "interval") {
+  if (isTask && isTaskRepeatYearly(taskOrRepeatDays)) {
+    const yearlyDate = repeatStartDate
+      ? parseISODate(repeatStartDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      : "start date";
+    return `Yearly on ${yearlyDate}${startLabel}${endLabel}`;
+  }
+
+  if (isTask && getTaskRepeatModeValue(taskOrRepeatDays) === "interval") {
     const interval = normalizeRepeatIntervalDays(taskOrRepeatDays.repeatIntervalDays);
     const repeatDays = normalizeRepeatDays(taskOrRepeatDays.repeatDays);
     const intervalLabel = interval === 1 ? "Every day" : `Every ${interval} days`;
     const weeklyLabel = repeatDays.length > 0 && repeatDays.length < 7
       ? ` + ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}`
       : "";
-    return `${repeatDays.length === 7 ? "Every day" : `${intervalLabel}${weeklyLabel}`}${endLabel}`;
+    return `${repeatDays.length === 7 ? "Every day" : `${intervalLabel}${weeklyLabel}`}${startLabel}${endLabel}`;
   }
 
-  if (!Array.isArray(taskOrRepeatDays) && getTaskRepeatModeValue(taskOrRepeatDays) === "specific") {
-    const dates = normalizeSpecificRepeatDates(taskOrRepeatDays.repeatSpecificDates, taskOrRepeatDays.date);
-    if (!dates.length) return `Specific dates${endLabel}`;
+  if (isTask && getTaskRepeatModeValue(taskOrRepeatDays) === "specific") {
+    const dates = normalizeSpecificRepeatDates(taskOrRepeatDays.repeatSpecificDates, repeatStartDate || taskOrRepeatDays.date);
+    if (!dates.length) return `Specific dates${startLabel}${endLabel}`;
     const preview = dates.slice(0, 2).map(formatDateHeading).join(", ");
     const extra = dates.length > 2 ? ` + ${dates.length - 2} more` : "";
-    return `${preview}${extra}${endLabel}`;
+    return `${preview}${extra}${startLabel}${endLabel}`;
   }
 
   const repeatDays = Array.isArray(taskOrRepeatDays)
     ? taskOrRepeatDays
     : normalizeRepeatDays(taskOrRepeatDays?.repeatDays);
-  if (!repeatDays.length) return `Weekly${endLabel}`;
-  if (repeatDays.length === 7) return `Every day${endLabel}`;
-  return `Weekly: ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}${endLabel}`;
+  if (!repeatDays.length) return `Weekly${startLabel}${endLabel}`;
+  if (repeatDays.length === 7) return `Every day${startLabel}${endLabel}`;
+  return `Weekly: ${repeatDays.map((day) => DAY_NAMES[day]).join(", ")}${startLabel}${endLabel}`;
 }
 
 function createPriorityChip(task) {
@@ -7199,7 +7598,7 @@ function getReminderVisualDuration(task) {
     return clamp(end > start ? end - start : GRID_MOVE_SNAP_MINUTES, GRID_MOVE_SNAP_MINUTES, MAX_TASK_DURATION_MINUTES);
   }
 
-  return GRID_MOVE_SNAP_MINUTES * 2;
+  return GRID_MOVE_SNAP_MINUTES;
 }
 
 function getScheduleProgressWeight(task) {
@@ -10373,8 +10772,10 @@ function createTaskInvitePayload(task) {
     meetingLink: isMeetingType(task.type) ? normalizeMeetingLink(task.meetingLink) : "",
     repeats: Boolean(task.repeats),
     repeatMode: getTaskRepeatModeValue(task),
+    repeatYearly: isTaskRepeatYearly(task),
     repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
-    repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date),
+    repeatStartDate: normalizeOptionalRepeatStartDate(task.repeatStartDate, task.date),
+    repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, normalizeOptionalRepeatStartDate(task.repeatStartDate, task.date)),
     repeatDays: normalizeRepeatDays(task.repeatDays),
     repeatSpecificDates: normalizeSpecificRepeatDates(task.repeatSpecificDates, task.date),
   };
@@ -10384,7 +10785,8 @@ function createTaskFromInvite(invite) {
   const payload = getInvitePayload(invite);
   const itemKind = normalizeItemKind(payload.itemKind);
   const date = isISODateString(payload.date) ? payload.date : todayISO;
-  const repeatMode = getRepeatModeForItemKind(itemKind, payload.repeatMode, "weekly");
+  const repeatYearly = normalizeRepeatYearly(payload);
+  const repeatMode = repeatYearly ? "weekly" : getRepeatModeForItemKind(itemKind, payload.repeatMode, "weekly");
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(payload.timerMode);
   const isAllDay = timerMode === "all-day";
   const time = isAllDay ? "00:00" : isTimeInputValue(payload.time) ? payload.time : "09:00";
@@ -10405,8 +10807,10 @@ function createTaskFromInvite(invite) {
     meetingLink: isMeetingType(payload.type) ? normalizeMeetingLink(payload.meetingLink) : "",
     repeats: Boolean(payload.repeats),
     repeatMode,
+    repeatYearly,
     repeatIntervalDays: normalizeRepeatIntervalDays(payload.repeatIntervalDays),
-    repeatEndDate: normalizeOptionalRepeatEndDate(payload.repeatEndDate, date),
+    repeatStartDate: normalizeOptionalRepeatStartDate(payload.repeatStartDate, date),
+    repeatEndDate: normalizeOptionalRepeatEndDate(payload.repeatEndDate, normalizeOptionalRepeatStartDate(payload.repeatStartDate, date)),
     repeatDays: Boolean(payload.repeats) ? repeatDays : [],
     repeatSpecificDates: Boolean(payload.repeats) ? repeatSpecificDates : [],
     completedDates: [],
@@ -10424,11 +10828,11 @@ function createTaskFromInvite(invite) {
     createdAt: new Date().toISOString(),
   };
 
-  if (task.repeats && task.repeatMode === "weekly" && task.repeatDays.length === 0) {
+  if (task.repeats && !task.repeatYearly && task.repeatMode === "weekly" && task.repeatDays.length === 0) {
     task.repeatDays = [weekdayForISODate(task.date)];
   }
 
-  if (task.repeats && task.repeatMode === "specific" && task.repeatSpecificDates.length === 0) {
+  if (task.repeats && !task.repeatYearly && task.repeatMode === "specific" && task.repeatSpecificDates.length === 0) {
     task.repeatSpecificDates = [task.date];
   }
 
@@ -12096,20 +12500,67 @@ function normalizeFeatureSettings(savedSettings) {
 }
 
 function normalizeWeeklyGoals(savedGoals) {
+  const source = savedGoals && typeof savedGoals === "object" && !Array.isArray(savedGoals) ? savedGoals : {};
+  const rawGoals = source.goalsByWeek && typeof source.goalsByWeek === "object" && !Array.isArray(source.goalsByWeek)
+    ? source.goalsByWeek
+    : source;
+  const goalsByWeek = {};
+
+  Object.entries(rawGoals).forEach(([weekStartISO, rawGoal]) => {
+    if (!isISODateString(weekStartISO)) return;
+
+    const normalizedGoal = normalizeWeeklyGoalEntry(rawGoal);
+    if (normalizedGoal) goalsByWeek[weekStartISO] = normalizedGoal;
+  });
+
+  return { goalsByWeek };
+}
+
+function normalizeWeeklyGoalEntry(value) {
+  const rawTarget = value && typeof value === "object"
+    ? value.targetXp ?? value.target ?? value.points ?? value.xp
+    : value;
+  const targetXp = normalizeWeeklyGoalXp(rawTarget);
+
+  if (targetXp <= 0) return null;
+
   return {
-    points: normalizeGoalValue(savedGoals.points),
+    targetXp,
+    setAt: value && typeof value === "object" && isValidDateString(value.setAt) ? value.setAt : "",
   };
 }
 
-function normalizeGoalValue(value) {
-  const goal = Number(value);
-  return [0, 10, 20, 30, 40, 50, 75, 100].includes(goal) ? goal : 0;
+function normalizeWeeklyGoalXp(value) {
+  const goal = Math.round(Number(value));
+  return Number.isFinite(goal) ? clamp(goal, 0, 999999) : 0;
+}
+
+function getWeeklyGoalForWeek(weekStartISO) {
+  if (!isISODateString(weekStartISO)) return null;
+  return weeklyGoals.goalsByWeek?.[weekStartISO] ?? null;
+}
+
+function lockWeeklyGoalForWeek(weekStartISO, targetXp) {
+  if (!isISODateString(weekStartISO) || getWeeklyGoalForWeek(weekStartISO)) return false;
+
+  const normalizedTarget = normalizeWeeklyGoalXp(targetXp);
+  if (normalizedTarget <= 0) return false;
+
+  weeklyGoals = normalizeWeeklyGoals({
+    goalsByWeek: {
+      ...(weeklyGoals.goalsByWeek ?? {}),
+      [weekStartISO]: {
+        targetXp: normalizedTarget,
+        setAt: new Date().toISOString(),
+      },
+    },
+  });
+  saveWeeklyGoals();
+  return true;
 }
 
 function applyWeeklyGoalsToControls() {
-  weeklyGoalInputs.forEach((input) => {
-    input.value = String(weeklyGoals[input.dataset.goal] ?? 0);
-  });
+  // Weekly goals are now locked from the weekly report, so there are no always-on controls to sync.
 }
 
 function parseInviteEmails(value) {
@@ -12190,6 +12641,12 @@ function normalizeOptionalEndTime(value) {
   return isTimeInputValue(value) ? String(value) : "";
 }
 
+function normalizeOptionalRepeatStartDate(value, fallbackDate = "") {
+  const repeatStartDate = String(value ?? "").trim();
+  if (!isISODateString(repeatStartDate)) return isISODateString(fallbackDate) ? fallbackDate : "";
+  return repeatStartDate;
+}
+
 function normalizeOptionalRepeatEndDate(value, startDate = "") {
   const repeatEndDate = String(value ?? "").trim();
   if (!isISODateString(repeatEndDate)) return "";
@@ -12217,8 +12674,8 @@ function normalizeTasks(savedTasks) {
     const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(task.timerMode);
     const isAllDay = timerMode === "all-day";
     const type = normalizeTaskTypeName(task.type);
-
-    return {
+    const repeatYearly = normalizeRepeatYearly(task);
+    const normalizedTask = {
       ...task,
       itemKind,
       time: isAllDay ? "00:00" : isTimeInputValue(task.time) ? task.time : "09:00",
@@ -12228,13 +12685,15 @@ function normalizeTasks(savedTasks) {
       priority: normalizePriority(task.priority),
       type,
       repeats: Boolean(task.repeats),
-      repeatMode: getRepeatModeForItemKind(task.itemKind, task.repeatMode, "weekly"),
+      repeatMode: repeatYearly ? "weekly" : getRepeatModeForItemKind(task.itemKind, task.repeatMode, "weekly"),
+      repeatYearly,
       repeatIntervalDays: normalizeRepeatIntervalDays(task.repeatIntervalDays),
-      repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, task.date),
+      repeatStartDate: normalizeOptionalRepeatStartDate(task.repeatStartDate, task.date),
+      repeatEndDate: normalizeOptionalRepeatEndDate(task.repeatEndDate, normalizeOptionalRepeatStartDate(task.repeatStartDate, task.date)),
       repeatDays: normalizeRepeatDays(task.repeatDays),
       repeatSpecificDates: normalizeSpecificRepeatDates(task.repeatSpecificDates, task.date),
-      completedDates: isAllDay ? [] : Array.isArray(task.completedDates) ? task.completedDates : [],
-      skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates : [],
+      completedDates: isAllDay ? [] : Array.isArray(task.completedDates) ? task.completedDates.filter(isISODateString) : [],
+      skippedDates: Array.isArray(task.skippedDates) ? task.skippedDates.filter(isISODateString) : [],
       earnedPoints: isAllDay ? null : Number.isFinite(Number(task.earnedPoints)) ? Math.round(Number(task.earnedPoints)) : null,
       actualMinutes: isAllDay ? null : Number.isFinite(Number(task.actualMinutes)) ? Math.round(Number(task.actualMinutes)) : null,
       earnedPointsByDate: isAllDay ? {} : normalizeNumberMap(task.earnedPointsByDate),
@@ -12249,6 +12708,31 @@ function normalizeTasks(savedTasks) {
       done: isAllDay ? false : Boolean(task.done),
       skipped: Boolean(task.skipped),
     };
+    const completedSnapshotsByDate = isAllDay ? {} : normalizeCompletedSnapshotsByDate(task.completedSnapshotsByDate);
+
+    normalizedTask.completedDates.forEach((date) => {
+      if (!completedSnapshotsByDate[date]) {
+        completedSnapshotsByDate[date] = createCompletedOccurrenceSnapshot(
+          normalizedTask,
+          date,
+          normalizedTask.earnedPointsByDate[date],
+          normalizedTask.actualMinutesByDate[date],
+        );
+      }
+    });
+
+    const completedSnapshot = isAllDay
+      ? null
+      : normalizeCompletedOccurrenceSnapshot(task.completedSnapshot, normalizedTask.date)
+        ?? (normalizedTask.done
+          ? createCompletedOccurrenceSnapshot(normalizedTask, normalizedTask.date, normalizedTask.earnedPoints, normalizedTask.actualMinutes)
+          : null);
+
+    return {
+      ...normalizedTask,
+      completedSnapshotsByDate,
+      completedSnapshot,
+    };
   });
 }
 
@@ -12262,11 +12746,51 @@ function normalizeNumberMap(value) {
   );
 }
 
+function normalizeCompletedSnapshotsByDate(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([date]) => isISODateString(date))
+      .map(([date, snapshot]) => [date, normalizeCompletedOccurrenceSnapshot(snapshot, date)])
+      .filter(([, snapshot]) => snapshot),
+  );
+}
+
+function normalizeCompletedOccurrenceSnapshot(value, occurrenceDate = todayISO) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const itemKind = normalizeItemKind(value.itemKind);
+  const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(value.timerMode);
+  const isAllDay = timerMode === "all-day";
+  const type = normalizeTaskTypeName(value.type) || "Personal";
+  const actualMinutes = Number(value.actualMinutes);
+  const earnedPoints = Number(value.earnedPoints);
+
+  return {
+    itemKind,
+    title: String(value.title ?? "").trim().replace(/\s+/g, " ").slice(0, 80) || "Task",
+    date: isISODateString(value.date) ? value.date : occurrenceDate,
+    time: isAllDay ? "00:00" : isTimeInputValue(value.time) ? value.time : "09:00",
+    endTime: itemKind === "reminder" ? normalizeOptionalEndTime(value.endTime) : "",
+    duration: itemKind === "reminder" || timerMode === "stopwatch" || isAllDay ? 0 : normalizeTaskDuration(value.duration),
+    timerMode,
+    type,
+    priority: normalizePriority(value.priority),
+    notes: String(value.notes ?? "").trim().slice(0, 700),
+    meetingLink: isMeetingType(type) ? normalizeMeetingLink(value.meetingLink) : "",
+    earnedPoints: Number.isFinite(earnedPoints) ? Math.max(Math.round(earnedPoints), 0) : null,
+    actualMinutes: Number.isFinite(actualMinutes) ? Math.max(Math.round(actualMinutes), 0) : null,
+    completedAt: isValidDateString(value.completedAt) ? value.completedAt : "",
+  };
+}
+
 function normalizeTaskTemplate(template) {
   const itemKind = normalizeItemKind(template.itemKind);
   const timerMode = itemKind === "reminder" ? "countdown" : normalizeTimerMode(template.timerMode);
   const isAllDay = timerMode === "all-day";
   const type = normalizeTaskTypeName(template.type);
+  const repeatYearly = normalizeRepeatYearly(template);
   return {
     id: template.id || crypto.randomUUID(),
     itemKind,
@@ -12279,9 +12803,11 @@ function normalizeTaskTemplate(template) {
     meetingLink: isMeetingType(type) ? normalizeMeetingLink(template.meetingLink) : "",
     priority: normalizePriority(template.priority),
     repeats: Boolean(template.repeats),
-    repeatMode: getRepeatModeForItemKind(itemKind, template.repeatMode, "weekly"),
+    repeatMode: repeatYearly ? "weekly" : getRepeatModeForItemKind(itemKind, template.repeatMode, "weekly"),
+    repeatYearly,
     repeatIntervalDays: normalizeRepeatIntervalDays(template.repeatIntervalDays),
-    repeatEndDate: normalizeOptionalRepeatEndDate(template.repeatEndDate, ""),
+    repeatStartDate: normalizeOptionalRepeatStartDate(template.repeatStartDate, ""),
+    repeatEndDate: normalizeOptionalRepeatEndDate(template.repeatEndDate, normalizeOptionalRepeatStartDate(template.repeatStartDate, "")),
     repeatDays: normalizeRepeatDays(template.repeatDays),
     repeatSpecificDates: normalizeSpecificRepeatDates(template.repeatSpecificDates),
   };

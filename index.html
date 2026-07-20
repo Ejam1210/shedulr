@@ -466,7 +466,8 @@
               </label>
               <label>
                 Type
-                <input id="editTaskType" name="type" type="text" maxlength="24" required />
+                <select id="editTaskType" name="type"></select>
+                <input id="editCustomTaskType" class="custom-type-input hidden" name="customType" type="text" maxlength="24" placeholder="New type name" />
               </label>
               <label>
                 Priority
@@ -511,12 +512,12 @@
               <div class="repeat-mode-field hidden" id="editRepeatModeField">
                 <label>
                   Repeat type
-                  <select id="editRepeatMode" name="repeatMode">
-                    <option value="interval">Every - days</option>
-                    <option value="weekly">Weekly days</option>
-                    <option value="specific">Specific dates</option>
-                  </select>
-                </label>
+                    <select id="editRepeatMode" name="repeatMode">
+                      <option value="interval">Every - days</option>
+                      <option value="weekly">Weekly days</option>
+                      <option value="specific">Specific dates</option>
+                    </select>
+                  </label>
                 <label class="repeat-interval-field hidden" id="editRepeatIntervalField">
                   Every
                   <input id="editRepeatIntervalDays" name="repeatIntervalDays" type="number" min="1" max="365" value="2" inputmode="numeric" />
@@ -552,10 +553,20 @@
                 </div>
                 <div class="specific-date-chips" id="editSpecificDateChips"></div>
               </div>
-              <label class="repeat-end-field hidden" id="editRepeatEndField">
-                Repeat ends
-                <input id="editRepeatEndDate" name="repeatEndDate" type="date" />
-              </label>
+              <div class="repeat-date-row hidden" id="editRepeatEndField">
+                <label>
+                  Repeat starts
+                  <input id="editRepeatStartDate" name="repeatStartDate" type="date" />
+                </label>
+                <label>
+                  Repeat ends
+                  <input id="editRepeatEndDate" name="repeatEndDate" type="date" />
+                </label>
+                <label class="repeat-yearly-toggle">
+                  <input id="editRepeatYearly" name="repeatYearly" type="checkbox" />
+                  <span>Yearly</span>
+                </label>
+              </div>
             </fieldset>
 
             <div class="edit-actions">
@@ -735,10 +746,20 @@
                   </div>
                   <div class="specific-date-chips" id="specificDateChips"></div>
                 </div>
-                <label class="repeat-end-field hidden" id="repeatEndField">
-                  Repeat ends
-                  <input id="taskRepeatEndDate" name="repeatEndDate" type="date" />
-                </label>
+                <div class="repeat-date-row hidden" id="repeatEndField">
+                  <label>
+                    Repeat starts
+                    <input id="taskRepeatStartDate" name="repeatStartDate" type="date" />
+                  </label>
+                  <label>
+                    Repeat ends
+                    <input id="taskRepeatEndDate" name="repeatEndDate" type="date" />
+                  </label>
+                  <label class="repeat-yearly-toggle">
+                    <input id="taskRepeatYearly" name="repeatYearly" type="checkbox" />
+                    <span>Yearly</span>
+                  </label>
+                </div>
               </fieldset>
 
               <button class="primary-button" type="submit">Add to schedule</button>
@@ -793,10 +814,11 @@
                     <button id="homeGridNextDate" type="button" aria-label="Next date">&gt;</button>
                     <button id="homeGridTodayButton" type="button">Today</button>
                   </div>
-                  <select id="homeGridRange" class="grid-range-select" aria-label="Home grid time range">
+                  <select id="homeGridRange" class="grid-range-select hidden" aria-label="Home grid time range">
                     <option value="day">Day</option>
                     <option value="week">Week</option>
                   </select>
+                  <button class="grid-range-toggle" id="homeGridRangeToggle" type="button" aria-pressed="false">Day view</button>
                   <div class="grid-zoom-controls home-grid-zoom-controls" aria-label="Home grid zoom controls">
                     <button id="homeGridZoomOut" type="button" aria-label="Zoom home grid out">-</button>
                     <span id="homeGridZoomLevel">100%</span>
@@ -829,10 +851,11 @@
               <button id="scheduleNextDate" type="button" aria-label="Next date">&gt;</button>
               <button id="scheduleTodayButton" type="button">Today</button>
             </div>
-            <select id="scheduleGridRange" class="grid-range-select view-only-grid" aria-label="Grid time range">
+            <select id="scheduleGridRange" class="grid-range-select hidden" aria-label="Grid time range">
               <option value="week">Week</option>
               <option value="day">Day</option>
             </select>
+            <button class="grid-range-toggle view-only-grid" id="scheduleGridRangeToggle" type="button" aria-pressed="true">Week view</button>
             <button class="filter-toggle-button" id="scheduleFilterButton" type="button" aria-label="Open filters" title="Filters" aria-expanded="false">
               <svg class="filter-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 7h10"></path>
@@ -1136,28 +1159,6 @@
             <option value="90">Last 3 months</option>
           </select>
         </div>
-
-        <section class="weekly-goals-card" aria-labelledby="weeklyGoalsTitle">
-          <div>
-            <h3 id="weeklyGoalsTitle">Weekly Goals</h3>
-            <p>Set an xp improvement goal for your next weekly report.</p>
-          </div>
-          <div class="goal-controls">
-            <label>
-              xp goal
-              <select class="weekly-goal-select" data-goal="points" aria-label="xp improvement goal">
-                <option value="0">No goal</option>
-                <option value="10">+10%</option>
-                <option value="20">+20%</option>
-                <option value="30">+30%</option>
-                <option value="40">+40%</option>
-                <option value="50">+50%</option>
-                <option value="75">+75%</option>
-                <option value="100">+100%</option>
-              </select>
-            </label>
-          </div>
-        </section>
 
         <div class="stats-grid" id="statsGrid"></div>
         <div class="weekly-report-dock" id="weeklyReport"></div>
